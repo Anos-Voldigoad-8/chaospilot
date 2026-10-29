@@ -1,0 +1,35 @@
+# Secret scanning runs before every commit. Installation:
+#
+#   pip install pre-commit
+#   pre-commit install
+#
+# gitleaks is built from source by the pre-commit framework on first run
+# (Go toolchain required). The local "secret-safety-guard" hook is a fast
+# belt-and-braces check that also blocks accidentally staged .env files.
+default_install_hook_types: [pre-commit]
+fail_fast: true
+
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks
+        args: ["--redact", "--verbose"]
+
+  - repo: local
+    hooks:
+      - id: secret-safety-guard
+        name: Secret safety guard (staged files)
+        description: Blocks staged .env files, private keys and obvious credentials.
+        entry: python scripts/check_secrets.py
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: python-syntax
+        name: Python syntax check
+        description: Compiles changed Python files to catch syntax errors early.
+        entry: python -m compileall -q
+        language: system
+        types: [python]
+        pass_filenames: true

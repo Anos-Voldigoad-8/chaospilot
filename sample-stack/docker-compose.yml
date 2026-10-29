@@ -1,0 +1,111 @@
+# ChaosPilot sample stack
+#
+# Five tiny FastAPI services wired together. No credentials are defined here:
+# configuration comes from the repository-root .env (optional) and non-secret
+# ${VAR} defaults. See ../.env.example.
+
+name: ${COMPOSE_PROJECT_NAME:-chaospilot}
+
+x-service-common: &service-common
+  env_file:
+    - path: ../.env
+      required: false
+  restart: unless-stopped
+  networks:
+    - chaospilot
+  healthcheck:
+    test:
+      - CMD
+      - python
+      - -c
+      - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health', timeout=2).status == 200 else 1)"
+    interval: 10s
+    timeout: 3s
+    retries: 5
+    start_period: 10s
+
+services:
+  catalog:
+    <<: *service-common
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: catalog
+    container_name: chaospilot-catalog
+    ports:
+      - "${CATALOG_PORT:-8001}:8000"
+    environment:
+      SERVICE_NAME: catalog
+      LOG_LEVEL: ${SAMPLE_STACK_LOG_LEVEL:-info}
+
+  cart:
+    <<: *service-common
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: cart
+    container_name: chaospilot-cart
+    ports:
+      - "${CART_PORT:-8002}:8000"
+    environment:
+      SERVICE_NAME: cart
+      LOG_LEVEL: ${SAMPLE_STACK_LOG_LEVEL:-info}
+
+  checkout:
+    <<: *service-common
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: checkout
+    container_name: chaospilot-checkout
+    depends_on:
+      cart:
+        condition: service_healthy
+      payments:
+        condition: service_healthy
+      notifications:
+        condition: service_healthy
+    ports:
+      - "${CHECKOUT_PORT:-8003}:8000"
+    environment:
+      SERVICE_NAME: checkout
+      LOG_LEVEL: ${SAMPLE_STACK_LOG_LEVEL:-info}
+      CART_URL: http://cart:8000
+      PAYMENTS_URL: http://payments:8000
+      NOTIFICATIONS_URL: http://notifications:8000
+
+  payments:
+    <<: *service-common
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: payments
+    container_name: chaospilot-payments
+    ports:
+      - "${PAYMENTS_PORT:-8004}:8000"
+    environment:
+      SERVICE_NAME: payments
+      LOG_LEVEL: ${SAMPLE_STACK_LOG_LEVEL:-info}
+
+  notifications:
+    <<: *service-common
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        SERVICE: notifications
+    container_name: chaospilot-notifications
+    ports:
+      - "${NOTIFICATIONS_PORT:-8005}:8000"
+    environment:
+      SERVICE_NAME: notifications
+      LOG_LEVEL: ${SAMPLE_STACK_LOG_LEVEL:-info}
+
+networks:
+  chaospilot:
+    name: ${CHAOSPILOT_DOCKER_NETWORK:-chaospilot}
+    driver: bridge

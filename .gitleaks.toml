@@ -1,0 +1,32 @@
+# Gitleaks configuration for ChaosPilot.
+# Extends the upstream default rules and adds repository-specific allowlists
+# for documentation placeholders and test fixtures.
+title = "ChaosPilot secret scanning"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Placeholders and generated artefacts that are not secrets"
+paths = [
+  '''(^|/)\.env\.example$''',
+  '''(^|/)node_modules/''',
+  '''(^|/)\.venv/''',
+  '''(^|/)dist/''',
+  '''(^|/)models/''',
+  '''(^|/)package-lock\.json$''',
+  '''(^|/)pnpm-lock\.yaml$''',
+]
+regexes = [
+  '''your-[a-z0-9-]+-(api-)?key-here''',
+  '''example-(token|secret|password)''',
+  '''REPLACE_ME''',
+  '''<[A-Z_]+>''',
+]
+
+[[rules]]
+id = "chaospilot-generic-credential"
+description = "Generic hardcoded credential assignment"
+regex = '''(?i)(api[_-]?key|secret|token|password|passwd|pwd)\s*[:=]\s*["'][A-Za-z0-9_\-]{20,}["']'''
+entropy = 3.5
+keywords = ["api_key", "apikey", "secret", "token", "password"]

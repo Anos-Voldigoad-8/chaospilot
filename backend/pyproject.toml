@@ -1,0 +1,34 @@
+[project]
+name = "chaospilot-backend"
+version = "0.1.0"
+description = "ChaosPilot backend: chaos engine, collector, anomaly detection and incident agent"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+  "fastapi>=0.115,<1.0",
+  "uvicorn[standard]>=0.34,<1.0",
+  "pydantic>=2.10,<3.0",
+  "pydantic-settings>=2.7,<3.0",
+  "python-dotenv>=1.0,<2.0",
+  "numpy>=2.1,<3.0",
+  "scikit-learn>=1.6,<2.0",
+  "docker>=7.1,<8.0",
+  "httpx>=0.28,<1.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["app", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+# B008: `Depends(...)` in FastAPI signatures is the documented pattern.
+ignore = ["E501", "B008"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101"]

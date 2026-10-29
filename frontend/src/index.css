@@ -1,0 +1,74 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply min-h-screen bg-ink-950 font-sans text-slate-200 antialiased;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(34, 211, 238, 0.08), transparent),
+      linear-gradient(rgba(148, 163, 184, 0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(148, 163, 184, 0.025) 1px, transparent 1px);
+    background-size: 100% 100%, 48px 48px, 48px 48px;
+  }
+
+  ::selection {
+    @apply bg-cyan-400/20 text-cyan-100;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-slate-700/70;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply rounded-xl border border-white/5 bg-ink-900/70 shadow-lg shadow-black/20 backdrop-blur;
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px];
+  }
+
+  .btn {
+    @apply inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-medium transition;
+  }
+
+  .field {
+    @apply w-full rounded-md border border-white/10 bg-ink-950/70 px-2.5 py-1.5 text-xs text-slate-200 outline-none transition focus:border-cyan-400/50 focus:ring-1 focus:ring-cyan-400/20;
+  }
+
+  .label {
+    @apply mb-1 block text-[10px] font-medium uppercase tracking-wider text-slate-500;
+  }
+}
+
+/* React Flow dark-theme adjustments */
+.react-flow__controls-button {
+  @apply !border-white/10 !bg-ink-800 !fill-slate-400;
+}
+
+.react-flow__minimap {
+  @apply !rounded-md;
+}
+
+.react-flow__attribution {
+  @apply !bg-transparent !text-slate-700;
+}
+
+.react-flow__node {
+  @apply cursor-pointer;
+}

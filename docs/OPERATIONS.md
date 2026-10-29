@@ -90,6 +90,28 @@ cd frontend && npm run build
 pre-commit run --all-files
 ```
 
+## Phase 2 harness (standalone collector)
+
+`backend/collector.py`, `backend/db.py` and `backend/chaos/engine.py` are
+independent of the FastAPI app, so they can be exercised without Docker:
+
+```bash
+# sample stack must already be running (compose or local Uvicorn processes)
+cd backend
+python scripts/smoke_test.py
+```
+
+The smoke test starts the 1-second collector, records a baseline, injects
+2000 ms of latency on `payments` for 10 seconds, resets every service and
+records recovery. It prints gateway `/checkout` p50 before/during/after, writes
+`backend/data/smoke.db` and exits non-zero unless the gateway p50 jumps by at
+least 800 ms. Useful flags: `--fault-ms`, `--duration`, `--target`, `--host`,
+`--db`, `--min-jump-ms`.
+
+`ChaosEngine` reads `SAMPLE_STACK_HOST` (default `127.0.0.1`) and
+`COMPOSE_PROJECT_NAME` (default `chaospilot`). Latency, memory and reset are
+HTTP calls to `/_chaos/*`; only `kill`/`restore` need the Docker daemon.
+
 ## Enabling real chaos
 
 1. Start Docker Desktop and the sample stack.

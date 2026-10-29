@@ -55,6 +55,10 @@ chaospilot/
 │   │   ├── agent/             # LLM client, prompts, diagnosis agent
 │   │   ├── api/               # HTTP routes and schemas
 │   │   └── services/          # Domain/store helpers
+│   ├── chaos/                 # Phase 2 fault engine (Docker + HTTP)
+│   ├── collector.py           # 1s telemetry collector
+│   ├── db.py                  # experiments + samples (SQLite)
+│   ├── scripts/smoke_test.py  # end-to-end latency-jump smoke test
 │   ├── tests/                 # pytest suite (no live secrets required)
 │   ├── requirements.txt
 │   └── pyproject.toml

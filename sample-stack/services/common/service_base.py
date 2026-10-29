@@ -1,224 +1,204 @@
-"""Shared FastAPI service harness used by all five demo services.
+"""Shared FastAPI harness for the ChaosPilot sample stack.
 
-Each service only defines its domain routes; this module supplies health,
-metrics, fault injection and the chaos middleware so telemetry behaves
-consistently across the stack.
+Adds p50 latency tracking, chaos endpoints, dependency error handling and the
+optional resilient dependency client to every service.
 """
 
 from __future__ import annotations
 
 import asyncio
 import os
-import random
+import statistics
 import time
+from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
 import psutil
 from fastapi import FastAPI, Request, Response
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+from common.http_client import (
+    DEFAULT_TIMEOUT_SECONDS,
+    RESILIENT_TIMEOUT_SECONDS,
+    DependencyClient,
+    DependencyError,
+)
+
+BYTES_PER_MB = 1024 * 1024
+PAGE_SIZE = 4096
 SERVICE_NAME = os.getenv("SERVICE_NAME", "service")
-SERVICE_VERSION = os.getenv("SERVICE_VERSION", "0.1.0")
-LOG_LEVEL = os.getenv("LOG_LEVEL", "info")
+RESILIENT = os.getenv("RESILIENT", "false").strip().lower() in {"1", "true", "yes", "on"}
 
 
 @dataclass
-class FaultState:
-    """Fault knobs controlled by the ChaosPilot backend."""
+class ChaosState:
+    """Faults currently applied to this process."""
 
     latency_ms: float = 0.0
-    error_rate: float = 0.0
-    cpu_percent: float = 0.0
-    memory_mb: float = 0.0
+    memory_blocks: list[bytearray] = field(default_factory=list)
 
-    def reset(self) -> None:
-        self.latency_ms = 0.0
-        self.error_rate = 0.0
-        self.cpu_percent = 0.0
-        self.memory_mb = 0.0
+    @property
+    def memory_mb(self) -> float:
+        return round(sum(len(block) for block in self.memory_blocks) / BYTES_PER_MB, 2)
 
     @property
     def active(self) -> bool:
-        return any(
-            value > 0
-            for value in (
-                self.latency_ms,
-                self.error_rate,
-                self.cpu_percent,
-                self.memory_mb,
-            )
-        )
+        return self.latency_ms > 0 or bool(self.memory_blocks)
+
+    def allocate(self, mb: int) -> None:
+        if mb <= 0:
+            return
+        block = bytearray(mb * BYTES_PER_MB)
+        # Touch one byte per page so the memory is actually resident, not lazy.
+        for offset in range(0, len(block), PAGE_SIZE):
+            block[offset] = 1
+        self.memory_blocks.append(block)
+
+    def reset(self) -> None:
+        self.latency_ms = 0.0
+        self.memory_blocks.clear()
 
 
 @dataclass
-class MetricsState:
-    """Cheap in-process counters exposed on /metrics."""
+class Telemetry:
+    """Response-time samples and counters."""
 
+    durations_ms: deque[float] = field(default_factory=lambda: deque(maxlen=20))
     requests: int = 0
     errors: int = 0
-    total_latency_ms: float = 0.0
     started_at: float = field(default_factory=time.time)
 
-    def record(self, latency_ms: float, failed: bool) -> None:
+    def record(self, duration_ms: float, failed: bool) -> None:
+        self.durations_ms.append(duration_ms)
         self.requests += 1
-        self.total_latency_ms += latency_ms
         if failed:
             self.errors += 1
+
+    def p50_latency_ms(self) -> float:
+        if not self.durations_ms:
+            return 0.0
+        return round(statistics.median(self.durations_ms), 3)
 
     @property
     def error_rate(self) -> float:
         return self.errors / self.requests if self.requests else 0.0
 
-    @property
-    def avg_latency_ms(self) -> float:
-        return self.total_latency_ms / self.requests if self.requests else 0.0
+
+class LatencyPayload(BaseModel):
+    ms: float = Field(ge=0, le=60_000)
 
 
-class FaultRequest(BaseModel):
-    latency_ms: float = Field(default=0.0, ge=0.0, le=60_000.0)
-    error_rate: float = Field(default=0.0, ge=0.0, le=1.0)
-    cpu_percent: float = Field(default=0.0, ge=0.0, le=100.0)
-    memory_mb: float = Field(default=0.0, ge=0.0, le=4096.0)
+class MemoryPayload(BaseModel):
+    mb: int = Field(ge=0, le=1024)
 
 
-class ServiceInfo(BaseModel):
-    name: str
-    version: str
-    status: str
-    uptime_seconds: float
-    fault_active: bool
-
-
-def _current_usage(state: FaultState) -> tuple[float, float]:
+def _service_metrics(name: str, telemetry: Telemetry, state: ChaosState) -> dict[str, Any]:
     process = psutil.Process()
-    cpu = process.cpu_percent(interval=None) + state.cpu_percent
-    memory = process.memory_info().rss / (1024 * 1024) + state.memory_mb
-    return min(cpu, 100.0), memory
-
-
-def _should_fail(path: str, state: FaultState) -> bool:
-    if path.startswith("/admin") or path in {"/health", "/metrics"}:
-        return False
-    return state.error_rate > 0 and random.random() < state.error_rate
+    return {
+        "service": name,
+        "timestamp": time.time(),
+        "latency_ms": telemetry.p50_latency_ms(),
+        "error_rate": round(telemetry.error_rate, 4),
+        "cpu_percent": round(process.cpu_percent(interval=None), 3),
+        "memory_mb": round(process.memory_info().rss / BYTES_PER_MB, 3),
+        "request_rate": telemetry.requests,
+        "requests_sampled": len(telemetry.durations_ms),
+        "fault_latency_ms": state.latency_ms,
+        "memory_held_mb": state.memory_mb,
+        "resilient": RESILIENT,
+    }
 
 
 def create_app(
     name: str,
     *,
-    routes: Callable[[FastAPI], None] | None = None,
+    register_routes: Callable[[FastAPI], None] | None = None,
 ) -> FastAPI:
-    """Build a service app with shared observability and chaos hooks."""
+    app = FastAPI(title=f"ChaosPilot {name}", version="0.2.0")
+    state = ChaosState()
+    telemetry = Telemetry()
+    client = DependencyClient(name, RESILIENT)
 
-    app = FastAPI(title=f"ChaosPilot {name}", version=SERVICE_VERSION)
-    state = FaultState()
-    metrics = MetricsState()
-    started_at = time.time()
+    app.state.chaos = state
+    app.state.telemetry = telemetry
+    app.state.dependency_client = client
+    app.state.resilient = RESILIENT
 
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=["*"],
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-    app.state.fault = state
-    app.state.metrics = metrics
-    app.state.service_name = name
+    @app.exception_handler(DependencyError)
+    async def dependency_error_handler(
+        request: Request, exc: DependencyError
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=502,
+            content={
+                "status": "dependency_error",
+                "service": name,
+                "dependency": exc.dependency,
+                "detail": exc.detail,
+                "resilient": RESILIENT,
+            },
+        )
 
     @app.middleware("http")
     async def chaos_middleware(request: Request, call_next: Any) -> Response:
-        begin = time.perf_counter()
-        path = request.url.path
-
+        started = time.perf_counter()
         if state.latency_ms > 0:
             await asyncio.sleep(state.latency_ms / 1000.0)
-        if _should_fail(path, state):
-            elapsed_ms = (time.perf_counter() - begin) * 1000.0
-            metrics.record(elapsed_ms, failed=True)
-            return JSONResponse(
-                status_code=503,
-                content={"detail": "injected fault", "service": name},
-            )
-
         try:
             response = await call_next(request)
-        except Exception:  # pragma: no cover - defensive middleware
-            metrics.record((time.perf_counter() - begin) * 1000.0, True)
+        except Exception:
+            telemetry.record((time.perf_counter() - started) * 1000.0, True)
             raise
-
-        if not path.startswith("/admin"):
-            metrics.record(
-                (time.perf_counter() - begin) * 1000.0,
-                failed=response.status_code >= 500,
-            )
-        return response
-
-    @app.get("/", response_model=ServiceInfo)
-    async def root() -> ServiceInfo:
-        return ServiceInfo(
-            name=name,
-            version=SERVICE_VERSION,
-            status="degraded" if state.active else "ok",
-            uptime_seconds=round(time.time() - started_at, 2),
-            fault_active=state.active,
+        telemetry.record(
+            (time.perf_counter() - started) * 1000.0,
+            response.status_code >= 500,
         )
+        return response
 
     @app.get("/health")
     async def health() -> dict[str, Any]:
         return {
             "status": "degraded" if state.active else "ok",
             "service": name,
-            "version": SERVICE_VERSION,
-            "uptime_seconds": round(time.time() - started_at, 2),
-            "fault_active": state.active,
+            "p50_latency_ms": telemetry.p50_latency_ms(),
+            "sampled_requests": len(telemetry.durations_ms),
+            "uptime_seconds": round(time.time() - telemetry.started_at, 2),
+            "resilient": RESILIENT,
+            "http_timeout_seconds": (
+                RESILIENT_TIMEOUT_SECONDS if RESILIENT else DEFAULT_TIMEOUT_SECONDS
+            ),
+            "retries": 1 if RESILIENT else 0,
+            "circuit_breaker": RESILIENT,
+            "fault_latency_ms": state.latency_ms,
+            "memory_held_mb": state.memory_mb,
         }
 
     @app.get("/metrics")
-    async def service_metrics() -> dict[str, Any]:
-        cpu, memory = _current_usage(state)
+    async def metrics() -> dict[str, Any]:
+        return _service_metrics(name, telemetry, state)
+
+    @app.post("/_chaos/latency")
+    async def apply_latency(payload: LatencyPayload) -> dict[str, Any]:
+        state.latency_ms = payload.ms
+        return {"service": name, "latency_ms": state.latency_ms}
+
+    @app.post("/_chaos/memory")
+    async def apply_memory(payload: MemoryPayload) -> dict[str, Any]:
+        await asyncio.to_thread(state.allocate, payload.mb)
         return {
             "service": name,
-            "timestamp": time.time(),
-            "latency_ms": round(metrics.avg_latency_ms, 3),
-            "error_rate": round(metrics.error_rate, 4),
-            "cpu_percent": round(cpu, 3),
-            "memory_mb": round(memory, 3),
-            "request_rate": metrics.requests,
-            "requests": metrics.requests,
-            "errors": metrics.errors,
-            "fault": {
-                "latency_ms": state.latency_ms,
-                "error_rate": state.error_rate,
-                "cpu_percent": state.cpu_percent,
-                "memory_mb": state.memory_mb,
-            },
+            "allocated_mb": payload.mb,
+            "memory_held_mb": state.memory_mb,
         }
 
-    @app.get("/admin/state")
-    async def admin_state() -> dict[str, Any]:
-        return {
-            "latency_ms": state.latency_ms,
-            "error_rate": state.error_rate,
-            "cpu_percent": state.cpu_percent,
-            "memory_mb": state.memory_mb,
-        }
-
-    @app.post("/admin/fault")
-    async def admin_fault(payload: FaultRequest) -> dict[str, Any]:
-        state.latency_ms = payload.latency_ms
-        state.error_rate = payload.error_rate
-        state.cpu_percent = payload.cpu_percent
-        state.memory_mb = payload.memory_mb
-        return {"service": name, "status": "fault-applied", "fault": payload.model_dump()}
-
-    @app.post("/admin/reset")
-    async def admin_reset() -> dict[str, str]:
+    @app.post("/_chaos/reset")
+    async def reset_chaos() -> dict[str, Any]:
         state.reset()
-        return {"service": name, "status": "reset"}
+        return {"service": name, "status": "reset", "memory_held_mb": state.memory_mb}
 
-    if routes is not None:
-        routes(app)
+    if register_routes is not None:
+        register_routes(app)
 
     return app

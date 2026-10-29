@@ -26,7 +26,7 @@ in one small, self-hosted lab.
 
 | Path | Purpose |
 | --- | --- |
-| `sample-stack/` | Docker Compose stack with five small FastAPI services |
+| `sample-stack/` | Docker Compose stack with a gateway and five small FastAPI services |
 | `backend/` | FastAPI app: chaos engine, collector, ML, LLM agent, API |
 | `frontend/` | React + Vite + Tailwind dashboard |
 | `docs/` | Architecture, phases, API reference, security and operations |

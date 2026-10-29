@@ -38,11 +38,12 @@ chaospilot/
 │   ├── docker-compose.yml
 │   ├── README.md
 │   └── services/
-│       ├── catalog/           # product catalogue
-│       ├── cart/              # shopping cart
-│       ├── checkout/          # order orchestration
-│       ├── payments/          # payment simulation
-│       └── notifications/     # async-style notifications
+│       ├── gateway/           # public entry point: GET /checkout
+│       ├── auth/              # GET /verify -> cache
+│       ├── orders/            # POST /create -> payments, db
+│       ├── cache/             # in-memory session cache
+│       ├── payments/          # POST /charge -> db
+│       └── db/                # in-memory records
 ├── backend/                   # FastAPI application (all server-side logic)
 │   ├── app/
 │   │   ├── main.py            # App factory, lifespan, routers
@@ -131,7 +132,7 @@ chaospilot/
 | Phase | Scope | Exit criteria |
 | --- | --- | --- |
 | 0 | Structure, docs, secrets safety, git | `.env` ignored, hooks installed, first commit |
-| 1 | Sample stack + collector | 5 services healthy, metrics persisted |
+| 1 | Sample stack + collector | 6 services healthy, metrics persisted |
 | 2 | Anomaly detection | model trains, detects injected faults |
 | 3 | Chaos engine | inject/recover latency, error, crash |
 | 4 | LLM agent | grounded diagnosis + fix suggestions |

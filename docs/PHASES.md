@@ -31,8 +31,13 @@ git grep -nE "(api[_-]?key|secret|token|password)\s*[:=]\s*['\"][A-Za-z0-9]{20,}
 
 **Deliverables**
 
-- Five FastAPI services (catalog, cart, checkout, payments, notifications),
-  each with `/health`, `/metrics`, `/work`, `/admin/fault`, `/admin/reset`.
+- Gateway plus five FastAPI services (auth, orders, cache, payments, db),
+  each with `/health` (p50 of the last 20 requests), `/metrics`,
+  `/_chaos/latency`, `/_chaos/memory` and `/_chaos/reset`.
+- HTTP dependency graph: gateway → auth/orders, auth → cache,
+  orders → payments/db, payments → db.
+- Fragile default profile (one attempt, 5 s timeout, no circuit breaker) and
+  `RESILIENT=true` (one retry, 1 s timeout, circuit breaker + fallback).
 - Docker Compose wiring, health checks and dependency URLs.
 - Backend collector: polling loop, SQLite persistence, simulation fallback.
 - `/api/services`, `/api/metrics`, `/api/overview`.
@@ -40,7 +45,8 @@ git grep -nE "(api[_-]?key|secret|token|password)\s*[:=]\s*['\"][A-Za-z0-9]{20,}
 **Exit criteria**
 
 - [ ] `docker compose config` is valid.
-- [ ] `docker compose up --build` shows 5 healthy services.
+- [ ] `docker compose up --build` shows 6 healthy services.
+- [ ] `curl http://localhost:8000/checkout` returns a created order.
 - [ ] Collector writes one row per service per interval.
 - [ ] Overview endpoint returns services and series.
 

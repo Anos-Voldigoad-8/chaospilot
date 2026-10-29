@@ -29,9 +29,9 @@ is a read-mostly dashboard with explicit control actions.
 └─────────┼──────────────────────────────────────┼───────────────────┼──────────┘
           │ /metrics, /health                    │ stop/exec/network │ HTTP
 ┌─────────▼──────────────────┐          ┌────────▼───────────────────▼──────────┐
-│ sample-stack (5 services)  │          │ Docker daemon                         │
-│ catalog cart checkout      │◀─────────│ compose project "chaospilot"          │
-│ payments notifications     │  faults  └───────────────────────────────────────┘
+│ sample-stack (6 services)  │          │ Docker daemon                         │
+│ gateway auth orders        │◀─────────│ compose project "chaospilot"          │
+│ cache payments db          │  faults  └───────────────────────────────────────┘
 └────────────────────────────┘
 ```
 

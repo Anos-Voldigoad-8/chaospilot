@@ -55,8 +55,9 @@ cd sample-stack
 docker compose up --build
 ```
 
-Services: catalog `:8001`, cart `:8002`, checkout `:8003`, payments `:8004`,
-notifications `:8005`.
+Services: gateway `:8000` (public), auth `:8001`, orders `:8002`, cache
+`:8003`, payments `:8004`, db `:8005`. Only the gateway is meant for users;
+the other ports let the collector reach each service directly.
 
 ## Useful commands
 

@@ -1,7 +1,8 @@
-"""Payments service: simulated charges and refunds."""
+"""Payments service: simulates charges and records them in the database."""
 
 from __future__ import annotations
 
+import os
 import uuid
 from typing import Any
 
@@ -9,7 +10,7 @@ from common.service_base import create_app
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
-CHARGES: dict[str, dict[str, Any]] = {}
+DB_URL = os.getenv("DB_URL", "http://db:8000")
 
 
 class ChargeRequest(BaseModel):
@@ -18,30 +19,29 @@ class ChargeRequest(BaseModel):
 
 
 def register_routes(app: FastAPI) -> None:
+    client = app.state.dependency_client
+
     @app.post("/charge")
     async def charge(payload: ChargeRequest) -> dict[str, Any]:
         charge_id = f"ch_{uuid.uuid4().hex[:12]}"
-        CHARGES[charge_id] = {
+        record = {
             "charge_id": charge_id,
             "order_id": payload.order_id,
             "amount": payload.amount,
             "status": "captured",
         }
-        return CHARGES[charge_id]
-
-    @app.post("/refund/{charge_id}")
-    async def refund(charge_id: str) -> dict[str, Any]:
-        charge = CHARGES.get(charge_id)
-        if charge is None:
-            from fastapi import HTTPException
-
-            raise HTTPException(status_code=404, detail="charge not found")
-        charge["status"] = "refunded"
-        return charge
-
-    @app.get("/work")
-    async def work() -> dict[str, Any]:
-        return {"service": "payments", "charges": len(CHARGES)}
+        persisted = await client.post(
+            f"{DB_URL}/records/payments/{charge_id}",
+            payload={"value": record},
+            fallback={"stored": False},
+        )
+        degraded = bool(persisted.get("degraded") or not persisted.get("stored"))
+        return {
+            **record,
+            "status": "captured" if not degraded else "captured_unpersisted",
+            "degraded": degraded,
+            "stored": bool(persisted.get("stored")),
+        }
 
 
-app = create_app("payments", routes=register_routes)
+app = create_app("payments", register_routes=register_routes)

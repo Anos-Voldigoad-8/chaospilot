@@ -8,7 +8,7 @@ from typing import Protocol
 
 import httpx
 
-from app.config import LLMSettings
+from core.config import LLMSettings
 
 LOGGER = logging.getLogger(__name__)
 

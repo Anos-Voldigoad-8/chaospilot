@@ -5,8 +5,8 @@ from __future__ import annotations
 import random
 from pathlib import Path
 
-from app.ml.detector import AnomalyDetector
-from app.ml.features import FEATURE_NAMES
+from core.ml.detector import AnomalyDetector
+from core.ml.features import FEATURE_NAMES
 
 
 def _healthy_samples(count: int = 200) -> list[list[float]]:

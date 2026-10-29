@@ -6,11 +6,11 @@ import time
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.api.deps import get_db
-from app.api.schemas import MetricsResponse, MetricSummary, ServiceOut
-from app.api.serializers import to_metric, to_service
-from app.database import Database
-from app.services import store
+from core.api.deps import get_db
+from core.api.schemas import MetricsResponse, MetricSummary, ServiceOut
+from core.api.serializers import to_metric, to_service
+from core.database import Database
+from core.services import store
 
 router = APIRouter(tags=["services"])
 

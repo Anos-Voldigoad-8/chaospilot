@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.database import Database
+from core.database import Database
 
 
 @dataclass(frozen=True)

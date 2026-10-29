@@ -11,20 +11,20 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app import __version__
-from app.agent.agent import IncidentAgent
-from app.api import agent as agent_routes
-from app.api import anomalies as anomaly_routes
-from app.api import chaos as chaos_routes
-from app.api import services as service_routes
-from app.api import system as system_routes
-from app.chaos.manager import ChaosManager
-from app.collector import simulator
-from app.collector.collector import TelemetryCollector
-from app.config import AppSettings, LLMSettings, get_llm_settings, get_settings
-from app.database import get_database
-from app.ml.service import AnomalyService
-from app.services.registry import seed_services
+from core import __version__
+from core.agent.agent import IncidentAgent
+from core.api import agent as agent_routes
+from core.api import anomalies as anomaly_routes
+from core.api import chaos as chaos_routes
+from core.api import services as service_routes
+from core.api import system as system_routes
+from core.chaos.manager import ChaosManager
+from core.collector import simulator
+from core.collector.collector import TelemetryCollector
+from core.config import AppSettings, LLMSettings, get_llm_settings, get_settings
+from core.database import get_database
+from core.ml.service import AnomalyService
+from core.services.registry import seed_services
 
 LOGGER = logging.getLogger(__name__)
 

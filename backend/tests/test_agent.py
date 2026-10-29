@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-from app.agent.llm import build_client
-from app.config import LLMSettings
+from core.agent.llm import build_client
+from core.config import LLMSettings
 
 
 def test_agent_status_does_not_expose_key(client: TestClient) -> None:

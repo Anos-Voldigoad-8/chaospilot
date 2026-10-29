@@ -7,8 +7,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from app.config import AppSettings, LLMSettings
-from app.main import create_app
+from core.config import AppSettings, LLMSettings
+from core.main import create_app
 
 
 @pytest.fixture

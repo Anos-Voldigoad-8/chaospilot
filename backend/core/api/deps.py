@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from fastapi import Request
 
-from app.agent.agent import IncidentAgent
-from app.chaos.manager import ChaosManager
-from app.config import AppSettings, LLMSettings
-from app.database import Database
-from app.ml.service import AnomalyService
+from core.agent.agent import IncidentAgent
+from core.chaos.manager import ChaosManager
+from core.config import AppSettings, LLMSettings
+from core.database import Database
+from core.ml.service import AnomalyService
 
 
 def get_db(request: Request) -> Database:

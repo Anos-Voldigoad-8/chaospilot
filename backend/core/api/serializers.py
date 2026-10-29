@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.api.deps import service_status
-from app.services.registry import SERVICES
+from core.api.deps import service_status
+from core.services.registry import SERVICES
 
 
 def dependencies_of(row: dict[str, Any]) -> list[str]:

@@ -7,12 +7,12 @@ import time
 import uuid
 from typing import Any
 
-from app.chaos.engine import ChaosBackend, SimulationEngine, build_engine
-from app.chaos.models import FaultRequest, FaultType
-from app.config import AppSettings
-from app.database import Database
-from app.services import store
-from app.services.registry import get_definition
+from core.chaos.engine import ChaosBackend, SimulationEngine, build_engine
+from core.chaos.models import FaultRequest, FaultType
+from core.config import AppSettings
+from core.database import Database
+from core.services import store
+from core.services.registry import get_definition
 
 LOGGER = logging.getLogger(__name__)
 

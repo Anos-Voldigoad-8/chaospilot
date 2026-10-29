@@ -12,9 +12,10 @@ smoke test, a worker process or the Phase 5 API lifespan.
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import time
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from contextlib import suppress
 from typing import Any
 
@@ -29,6 +30,9 @@ DEFAULT_INTERVAL_SECONDS = 1.0
 DEFAULT_TIMEOUT_SECONDS = 10.0
 SUCCESS_STATUSES = {"ok", "degraded"}
 
+LabelResolver = Callable[[float], tuple[int | None, int]]
+SampleCallback = Callable[[list[Sample]], Awaitable[None] | None]
+
 
 class Collector:
     """Async loop that records liveness, latency and errors once per second."""
@@ -42,10 +46,14 @@ class Collector:
         timeout: float = DEFAULT_TIMEOUT_SECONDS,
         urls: Mapping[str, str] | None = None,
         client: httpx.AsyncClient | None = None,
+        label_resolver: LabelResolver | None = None,
+        on_samples: SampleCallback | None = None,
     ) -> None:
         self.database = database
         self.interval = interval
         self.timeout = timeout
+        self._label_resolver = label_resolver
+        self._on_samples = on_samples
         self.urls = (
             dict(urls)
             if urls is not None
@@ -102,6 +110,10 @@ class Collector:
             try:
                 samples = await self.probe_once()
                 self.database.insert_samples(samples)
+                if self._on_samples is not None and samples:
+                    callback = self._on_samples(samples)
+                    if inspect.isawaitable(callback):
+                        await callback
             except Exception:  # keep collecting through transient DB/network errors
                 LOGGER.exception("collector tick failed")
 
@@ -117,12 +129,15 @@ class Collector:
         if client is None:
             raise RuntimeError("collector client is not initialised; call start() first")
 
-        # One timestamp and one experiment lookup per tick keeps every sample
-        # aligned with the label decision, even when a probe is slow.
+        # One timestamp and one label decision per tick keeps every sample
+        # aligned with the experiment window, even when a probe is slow.
         tick_ts = time.time()
-        experiment = self.database.active_experiment(at=tick_ts)
-        experiment_id = int(experiment["id"]) if experiment else None
-        label = 1 if experiment else 0
+        if self._label_resolver is not None:
+            experiment_id, label = self._label_resolver(tick_ts)
+        else:
+            experiment = self.database.active_experiment(at=tick_ts)
+            experiment_id = int(experiment["id"]) if experiment else None
+            label = 1 if experiment else 0
 
         probes = [
             self._probe_service(client, service, tick_ts, label, experiment_id)

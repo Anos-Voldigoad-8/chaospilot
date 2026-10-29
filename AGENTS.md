@@ -34,7 +34,7 @@ chaospilot/
 ├── .gitleaks.toml             # Secret scanning configuration
 ├── scripts/
 │   └── check_secrets.py       # Fast staged-file secret guard
-├── sample-stack/              # Docker Compose demo system (5 FastAPI services)
+├── sample-stack/              # Docker Compose demo system (gateway + 5 services)
 │   ├── docker-compose.yml
 │   ├── README.md
 │   └── services/
@@ -45,20 +45,18 @@ chaospilot/
 │       ├── payments/          # POST /charge -> db
 │       └── db/                # in-memory records
 ├── backend/                   # FastAPI application (all server-side logic)
-│   ├── app/
-│   │   ├── main.py            # App factory, lifespan, routers
-│   │   ├── config.py          # Env-driven settings (python-dotenv)
-│   │   ├── database.py        # SQLite connection + schema
-│   │   ├── chaos/             # Fault definitions + Docker engine
-│   │   ├── collector/         # Telemetry polling and persistence
-│   │   ├── ml/                # Features, anomaly model, training
-│   │   ├── agent/             # LLM client, prompts, diagnosis agent
-│   │   ├── api/               # HTTP routes and schemas
-│   │   └── services/          # Domain/store helpers
+│   ├── app.py                 # Phase 3 API: topology, experiments, /ws
+│   ├── api_config.py          # Env-driven Phase 3 settings
 │   ├── chaos/                 # Phase 2 fault engine (Docker + HTTP)
 │   ├── collector.py           # 1s telemetry collector
 │   ├── db.py                  # experiments + samples (SQLite)
-│   ├── scripts/smoke_test.py  # end-to-end latency-jump smoke test
+│   ├── experiments.py         # background experiment runner
+│   ├── runtime.py             # status, score, postmortem helpers
+│   ├── stack.py               # resilient stack restarts
+│   ├── topology.py            # sample-stack graph
+│   ├── ws.py                  # WebSocket fan-out
+│   ├── scripts/               # smoke test + WebSocket client
+│   ├── core/                  # earlier scaffold: ML, LLM agent, API routes
 │   ├── tests/                 # pytest suite (no live secrets required)
 │   ├── requirements.txt
 │   └── pyproject.toml
@@ -92,8 +90,9 @@ chaospilot/
 - **Never commit secrets.** No API keys, tokens, passwords, private keys,
   connection strings with credentials, or real `.env` files.
 - All backend secrets/config are read from environment variables through
-  `python-dotenv` + `pydantic-settings` (`app/config.py`). Never read secrets
-  with hardcoded fallbacks.
+  `python-dotenv` + `pydantic-settings` (`backend/core/config.py`) and the Phase 3
+  API settings (`backend/api_config.py`). Never read secrets with hardcoded
+  fallbacks.
 - The frontend may only read `import.meta.env.VITE_*` values that are **public
   and non-secret**. Never put an API key in the frontend or in a `VITE_*` var.
 - **All LLM calls happen in the backend.** The browser talks only to the
@@ -153,7 +152,7 @@ cd backend
 python -m venv .venv
 .venv/Scripts/activate        # Windows; source .venv/bin/activate elsewhere
 pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
+uvicorn app:app --reload --port 8090
 pytest -q
 
 # Frontend

@@ -12,9 +12,9 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from app.database import Database
-from app.services import store
-from app.services.registry import SERVICES
+from core.database import Database
+from core.services import store
+from core.services.registry import SERVICES
 
 
 @dataclass(frozen=True)

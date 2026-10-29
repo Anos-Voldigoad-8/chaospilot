@@ -14,12 +14,12 @@ from typing import Any
 
 import httpx
 
-from app.collector import simulator
-from app.config import AppSettings
-from app.database import Database
-from app.ml.service import AnomalyService
-from app.services import store
-from app.services.registry import SERVICES, ServiceDefinition
+from core.collector import simulator
+from core.config import AppSettings
+from core.database import Database
+from core.ml.service import AnomalyService
+from core.services import store
+from core.services.registry import SERVICES, ServiceDefinition
 
 LOGGER = logging.getLogger(__name__)
 

@@ -7,7 +7,8 @@
 1. **No secrets in git.** Not in code, tests, docs, compose files, issues or
    screenshots.
 2. **Backend reads secrets from the environment** via `python-dotenv` and
-   `pydantic-settings` (`backend/app/config.py`). No hardcoded fallbacks.
+   `pydantic-settings` (`backend/core/config.py`) and the Phase 3 API settings
+   in `backend/api_config.py`. No hardcoded fallbacks.
 3. **Frontend gets public configuration only.** `import.meta.env` values must
    start with `VITE_` and be non-secret. An API key must never reach the
    browser bundle.

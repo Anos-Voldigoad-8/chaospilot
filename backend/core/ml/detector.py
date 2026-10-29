@@ -16,7 +16,7 @@ from typing import Any
 
 import numpy as np
 
-from app.ml.features import FEATURE_NAMES
+from core.ml.features import FEATURE_NAMES
 
 try:  # scikit-learn is a hard dependency, but degrade gracefully if absent.
     from sklearn.ensemble import IsolationForest

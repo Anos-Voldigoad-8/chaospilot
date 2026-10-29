@@ -56,7 +56,7 @@ export default function App() {
                 <Radar className="mx-auto h-8 w-8 animate-pulse text-cyan-400" aria-hidden />
                 <p className="mt-3 text-sm text-slate-400">Connecting to the ChaosPilot backend…</p>
                 <p className="mt-1 text-xs text-slate-600">
-                  Start it with <code className="font-mono">uvicorn app.main:app --port 8000</code>
+                  Start it with <code className="font-mono">uvicorn app:app --port 8090</code>
                 </p>
               </>
             ) : (

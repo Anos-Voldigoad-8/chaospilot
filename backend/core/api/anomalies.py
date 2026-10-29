@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Query
 
-from app.api.deps import get_anomaly_service, get_db
-from app.api.schemas import AnomalyOut, DetectionResponse, TrainingResponse
-from app.database import Database
-from app.ml.service import AnomalyService
-from app.services import store
+from core.api.deps import get_anomaly_service, get_db
+from core.api.schemas import AnomalyOut, DetectionResponse, TrainingResponse
+from core.database import Database
+from core.ml.service import AnomalyService
+from core.services import store
 
 router = APIRouter(tags=["anomalies"])
 

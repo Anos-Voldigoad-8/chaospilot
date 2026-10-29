@@ -37,26 +37,46 @@ is a read-mostly dashboard with explicit control actions.
 
 ## 2. Backend modules
 
+The served API is the Phase 3 app at `backend/app.py`:
+
 | Module | Responsibility |
 | --- | --- |
-| `app/config.py` | Typed environment settings; only place that reads `.env` |
-| `app/database.py` | SQLite connection factory, schema, WAL mode |
-| `app/services/registry.py` | Canonical service catalogue and dependencies |
-| `app/services/store.py` | Queries for services, metrics, faults, incidents |
-| `app/collector/simulator.py` | Synthetic telemetry when Docker is absent |
-| `app/collector/collector.py` | Async polling loop; persists samples; triggers detection |
-| `app/ml/features.py` | Feature extraction from metric rows |
-| `app/ml/detector.py` | StandardScaler + IsolationForest, persisted with pickle |
-| `app/ml/service.py` | Train, score, de-duplicate and persist anomalies |
-| `app/chaos/models.py` | Fault types, parameters, validation |
-| `app/chaos/engine.py` | Docker SDK fault application/recovery |
-| `app/chaos/manager.py` | Fault lifecycle: inject → active → recover/expire |
-| `app/agent/llm.py` | Ollama and OpenAI-compatible clients (backend only) |
-| `app/agent/prompts.py` | Grounded prompt templates |
-| `app/agent/agent.py` | Context assembly, LLM call, fallback analysis, incidents |
-| `app/api/*` | Versionless JSON API routers + Pydantic schemas |
+| `app.py` | FastAPI app: topology, experiments, WebSocket, CORS |
+| `api_config.py` | Env-driven Phase 3 settings |
+| `topology.py` | Static sample-stack nodes and edges |
+| `stack.py` | Docker Compose restarts with `RESILIENT=true|false` |
+| `experiments.py` | Background run lifecycle and event broadcasting |
+| `collector.py` | 1 s probing of `/health` plus gateway `/checkout` |
+| `db.py` | SQLite experiments, samples and run metadata |
+| `runtime.py` | Status derivation, resilience score, postmortem text |
+| `ws.py` | WebSocket fan-out to dashboard clients |
+| `chaos/engine.py` | Docker `kill`/`restore` and HTTP `/_chaos/*` faults |
 
-### Data flow (one tick)
+### Legacy core scaffold
+
+The earlier scaffold remains under `backend/core/` and is not the served
+entrypoint. It contains the IsolationForest detector and LLM agent work:
+
+| Module | Responsibility |
+| --- | --- |
+| `core/config.py` | Typed environment settings; only place that reads `.env` |
+| `core/database.py` | SQLite connection factory, schema, WAL mode |
+| `core/services/registry.py` | Canonical service catalogue and dependencies |
+| `core/services/store.py` | Queries for services, metrics, faults, incidents |
+| `core/collector/simulator.py` | Synthetic telemetry when Docker is absent |
+| `core/collector/collector.py` | Async polling loop; persists samples; triggers detection |
+| `core/ml/features.py` | Feature extraction from metric rows |
+| `core/ml/detector.py` | StandardScaler + IsolationForest, persisted with pickle |
+| `core/ml/service.py` | Train, score, de-duplicate and persist anomalies |
+| `core/chaos/models.py` | Fault types, parameters, validation |
+| `core/chaos/engine.py` | Docker SDK fault application/recovery |
+| `core/chaos/manager.py` | Fault lifecycle: inject → active → recover/expire |
+| `core/agent/llm.py` | Ollama and OpenAI-compatible clients (backend only) |
+| `core/agent/prompts.py` | Grounded prompt templates |
+| `core/agent/agent.py` | Context assembly, LLM call, fallback analysis, incidents |
+| `core/api/*` | Versionless JSON API routers + Pydantic schemas |
+
+### Data flow (legacy core pipeline)
 
 1. Collector asks each service for `/metrics` (or the simulator invents a
    sample, including any active fault effect).
@@ -123,8 +143,8 @@ a state-of-the-art detector.
 - Default provider is **Ollama** (`http://localhost:11434`), so no key is
   required. Hosted OpenAI-compatible APIs are supported by setting
   `LLM_PROVIDER=openai` and `OPENAI_API_KEY` in `.env`.
-- The key is read only in `app/config.py` and used only in
-  `app/agent/llm.py`. It is never returned by an endpoint, logged, or sent to
+- The key is read only in `core/config.py` and used only in
+  `core/agent/llm.py`. It is never returned by an endpoint, logged, or sent to
   the frontend.
 - The prompt contains: service metadata, dependency edges, the anomaly, the
   last N metric samples, recent faults, and recent incidents. The model must

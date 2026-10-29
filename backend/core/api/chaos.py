@@ -4,11 +4,11 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.api.deps import get_chaos_manager
-from app.api.schemas import FaultOut
-from app.chaos.manager import ChaosError, ChaosManager
-from app.chaos.models import FaultRequest
-from app.services import store
+from core.api.deps import get_chaos_manager
+from core.api.schemas import FaultOut
+from core.chaos.manager import ChaosError, ChaosManager
+from core.chaos.models import FaultRequest
+from core.services import store
 
 router = APIRouter(tags=["chaos"])
 

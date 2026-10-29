@@ -7,7 +7,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
 
-from app.services.registry import SERVICE_IDS
+from core.services.registry import SERVICE_IDS
 
 
 class FaultType(str, Enum):

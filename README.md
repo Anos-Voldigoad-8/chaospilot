@@ -45,7 +45,7 @@ cd backend
 python -m venv .venv
 .venv/Scripts/activate           # source .venv/bin/activate on macOS/Linux
 pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
+uvicorn app:app --reload --port 8090
 
 # 3. Frontend (new terminal)
 cd frontend
@@ -57,7 +57,7 @@ cd sample-stack
 docker compose up --build
 ```
 
-Open <http://localhost:5173>. API docs live at <http://localhost:8000/docs>.
+Open <http://localhost:5173>. API docs live at <http://localhost:8090/docs>.
 
 ChaosPilot starts in **simulation mode** (`CHAOSPILOT_SIMULATION_MODE=true`),
 so you can explore the dashboard, anomaly detection and the agent without

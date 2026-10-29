@@ -8,8 +8,14 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      "/api": "http://127.0.0.1:8000",
-      "/health": "http://127.0.0.1:8000",
+      "/api": "http://127.0.0.1:8090",
+      "/health": "http://127.0.0.1:8090",
+      "/topology": "http://127.0.0.1:8090",
+      "/experiments": "http://127.0.0.1:8090",
+      "/ws": {
+        target: "http://127.0.0.1:8090",
+        ws: true,
+      },
     },
   },
   build: {

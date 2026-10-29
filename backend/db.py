@@ -48,7 +48,34 @@ CREATE TABLE IF NOT EXISTS samples (
 CREATE INDEX IF NOT EXISTS idx_samples_ts ON samples(ts);
 CREATE INDEX IF NOT EXISTS idx_samples_service_ts ON samples(service, ts);
 CREATE INDEX IF NOT EXISTS idx_samples_experiment ON samples(experiment_id);
+
+CREATE TABLE IF NOT EXISTS experiment_runs (
+    experiment_id INTEGER PRIMARY KEY REFERENCES experiments(id) ON DELETE CASCADE,
+    status        TEXT    NOT NULL DEFAULT 'running',
+    resilient     INTEGER NOT NULL DEFAULT 0,
+    baseline_end  REAL,
+    fault_started REAL,
+    fault_ended   REAL,
+    recovery_end  REAL,
+    score         REAL,
+    postmortem    TEXT,
+    error         TEXT
+);
 """
+
+RUN_FIELDS = frozenset(
+    {
+        "status",
+        "resilient",
+        "baseline_end",
+        "fault_started",
+        "fault_ended",
+        "recovery_end",
+        "score",
+        "postmortem",
+        "error",
+    }
+)
 
 
 @dataclass(frozen=True)
@@ -207,3 +234,87 @@ class ChaosDatabase:
         with self.connect() as connection:
             row = connection.execute("SELECT COUNT(*) AS total FROM samples").fetchone()
         return int(row["total"])
+
+    # ------------------------------------------------------------------
+    # Phase 3 run metadata (status, phases, score, postmortem)
+    # ------------------------------------------------------------------
+    def create_run(
+        self,
+        experiment_id: int,
+        *,
+        resilient: bool = False,
+        status: str = "running",
+    ) -> None:
+        with self.connect() as connection:
+            connection.execute(
+                "INSERT OR REPLACE INTO experiment_runs "
+                "(experiment_id, status, resilient) VALUES (?, ?, ?)",
+                (experiment_id, status, int(resilient)),
+            )
+
+    def update_run(self, experiment_id: int, **fields: Any) -> None:
+        unknown = set(fields) - RUN_FIELDS
+        if unknown:
+            raise ValueError(f"unknown run fields: {', '.join(sorted(unknown))}")
+        if not fields:
+            return
+        assignments = ", ".join(f"{name} = ?" for name in fields)
+        values = list(fields.values())
+        with self.connect() as connection:
+            connection.execute(
+                "INSERT OR IGNORE INTO experiment_runs (experiment_id) VALUES (?)",
+                (experiment_id,),
+            )
+            connection.execute(
+                f"UPDATE experiment_runs SET {assignments} WHERE experiment_id = ?",
+                (*values, experiment_id),
+            )
+
+    def run_detail(self, experiment_id: int) -> dict[str, Any] | None:
+        with self.connect() as connection:
+            row = connection.execute(
+                f"{RUN_SELECT} WHERE e.id = ?",
+                (experiment_id,),
+            ).fetchone()
+        return _normalize_run_row(row) if row else None
+
+    def list_runs(self, limit: int = 100) -> list[dict[str, Any]]:
+        with self.connect() as connection:
+            rows = connection.execute(
+                f"{RUN_SELECT} ORDER BY e.id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [_normalize_run_row(row) for row in rows]
+
+    def samples_for_experiment(
+        self, experiment_id: int, *, limit: int = 5_000
+    ) -> list[dict[str, Any]]:
+        with self.connect() as connection:
+            rows = connection.execute(
+                "SELECT id, experiment_id, ts, service, up, latency_ms, error, label "
+                "FROM samples WHERE experiment_id = ? ORDER BY ts LIMIT ?",
+                (experiment_id, limit),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+
+RUN_SELECT = """
+SELECT e.id, e.fault, e.target, e.started, e.ended, e.fixes_on,
+       r.status, r.resilient, r.baseline_end, r.fault_started, r.fault_ended,
+       r.recovery_end, r.score, r.postmortem, r.error,
+       (SELECT COUNT(*) FROM samples s WHERE s.experiment_id = e.id) AS sample_count,
+       (SELECT COUNT(*) FROM samples s WHERE s.experiment_id = e.id AND s.error = 1)
+           AS error_count
+FROM experiments e
+LEFT JOIN experiment_runs r ON r.experiment_id = e.id
+"""
+
+
+def _normalize_run_row(row: sqlite3.Row) -> dict[str, Any]:
+    data = dict(row)
+    data["fixes"] = bool(data.pop("fixes_on"))
+    data["resilient"] = bool(data.get("resilient") or 0)
+    if data.get("status") is None:
+        data["status"] = "completed" if data.get("ended") is not None else "unknown"
+    return data
+

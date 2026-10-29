@@ -8,11 +8,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from app.database import Database
-from app.ml.detector import AnomalyDetector
-from app.ml.features import row_to_vector
-from app.services import store
-from app.services.registry import SERVICES
+from core.database import Database
+from core.ml.detector import AnomalyDetector
+from core.ml.features import row_to_vector
+from core.services import store
+from core.services.registry import SERVICES
 
 LOGGER = logging.getLogger(__name__)
 

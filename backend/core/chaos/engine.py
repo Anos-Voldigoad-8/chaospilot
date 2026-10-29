@@ -12,9 +12,9 @@ from typing import Protocol
 
 import httpx
 
-from app.chaos.models import FaultType
-from app.config import AppSettings
-from app.services.registry import ServiceDefinition
+from core.chaos.models import FaultType
+from core.config import AppSettings
+from core.services.registry import ServiceDefinition
 
 LOGGER = logging.getLogger(__name__)
 

@@ -31,11 +31,12 @@ cd backend
 python -m venv .venv
 .venv/Scripts/activate          # source .venv/bin/activate on macOS/Linux
 pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
+uvicorn app:app --reload --port 8090
 ```
 
-Backend creates `backend/data/chaospilot.db` and, after enough samples,
-`backend/models/anomaly_detector.pkl`. Both are git-ignored.
+Backend creates `backend/data/chaos.db` for experiments and samples. The older
+`core` scaffold uses `backend/data/chaospilot.db` and
+`backend/models/anomaly_detector.pkl`; both directories are git-ignored.
 
 ### Frontend
 
@@ -62,25 +63,29 @@ the other ports let the collector reach each service directly.
 ## Useful commands
 
 ```bash
-# Capabilities
-curl http://localhost:8000/health
+# API health and topology
+curl http://localhost:8090/health
+curl http://localhost:8090/topology
 
-# Overview snapshot
-curl http://localhost:8000/api/overview
-
-# Train the model
-curl -X POST http://localhost:8000/api/anomalies/train
-
-# Inject latency on payments for 2 minutes
-curl -X POST http://localhost:8000/api/faults \
+# Run a 10s baseline / 20s fault / 10s recovery experiment
+curl -X POST http://localhost:8090/experiments/run \
   -H "Content-Type: application/json" \
-  -d '{"service_id":"payments","fault_type":"latency","duration_seconds":120,"parameters":{"latency_ms":1500}}'
+  -d '{"fault":"latency","target":"payments","fixes":false}'
 
-# Ask the agent
-curl -X POST http://localhost:8000/api/agent/diagnose \
+# Same, but restart the stack with RESILIENT=true first
+curl -X POST http://localhost:8090/experiments/run \
   -H "Content-Type: application/json" \
-  -d '{"service_id":"payments"}'
+  -d '{"fault":"memory","target":"db","fixes":true}'
+
+# History and one experiment with samples/postmortem
+curl http://localhost:8090/experiments
+curl http://localhost:8090/experiments/1
+
+# Watch the live WebSocket stream (starts an experiment unless --no-run)
+cd backend
+python scripts/ws_client.py --fault latency --target payments
 ```
+
 
 ## Tests and checks
 
@@ -89,6 +94,24 @@ cd backend && pytest -q
 cd frontend && npm run build
 pre-commit run --all-files
 ```
+
+## Phase 3 API and live stream
+
+`uvicorn app:app --port 8090` serves the Phase 3 API. A run is always
+**10 s baseline → 20 s fault → 10 s recovery**, stores labelled samples in
+`backend/data/chaos.db`, and broadcasts `state`, `metrics`, `score`, `log` and
+`postmortem` events on `ws://127.0.0.1:8090/ws`. Only one experiment can run at
+a time. See [`API.md`](API.md) for response shapes.
+
+```bash
+cd backend
+python scripts/ws_client.py --fault latency --target payments
+# or observe without starting a run:
+python scripts/ws_client.py --no-run
+```
+
+`fixes=true` restarts the sample stack through Docker Compose with
+`RESILIENT=true`; `fixes=false` uses the stack as it is.
 
 ## Phase 2 harness (standalone collector)
 
@@ -112,22 +135,21 @@ least 800 ms. Useful flags: `--fault-ms`, `--duration`, `--target`, `--host`,
 `COMPOSE_PROJECT_NAME` (default `chaospilot`). Latency, memory and reset are
 HTTP calls to `/_chaos/*`; only `kill`/`restore` need the Docker daemon.
 
-## Enabling real chaos
+## Stack control and Docker
 
-1. Start Docker Desktop and the sample stack.
-2. Set in `.env`:
+The Phase 3 API controls the sample stack directly:
 
-   ```dotenv
-   CHAOSPILOT_DOCKER_ENABLED=true
-   CHAOSPILOT_SIMULATION_MODE=false
-   ```
+- `latency`, `memory` and `reset` are HTTP calls to `/_chaos/*`.
+- `kill` and `restore` use the Docker SDK for Python and need a running Docker
+  daemon plus the `chaospilot` Compose project.
+- `fixes=true` runs `docker compose up -d --force-recreate` in
+  `sample-stack/` with `RESILIENT=true` in the environment, which recreates the
+  containers with the resilient profile.
 
-3. Restart the backend. It discovers containers by the Compose labels
-   `com.docker.compose.project=chaospilot` and
-   `com.docker.compose.service=<service>`.
-
-If the daemon is unreachable the manager logs a warning and continues in
-simulation mode; the API never crashes because Docker is missing.
+Without Docker, latency and memory experiments still work against the stack if
+its services are reachable on ports 8000–8005. `kill`/`restore` and
+`fixes=true` return a clear error in the live log and postmortem instead of
+crashing the API.
 
 ## Enabling the LLM
 

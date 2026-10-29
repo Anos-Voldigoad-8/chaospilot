@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.agent.agent import IncidentAgent
-from app.api.deps import get_incident_agent
-from app.api.schemas import DiagnoseRequest, IncidentOut
-from app.services import store
+from core.agent.agent import IncidentAgent
+from core.api.deps import get_incident_agent
+from core.api.schemas import DiagnoseRequest, IncidentOut
+from core.services import store
 
 router = APIRouter(tags=["agent"])
 

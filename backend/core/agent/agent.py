@@ -9,12 +9,12 @@ import time
 import uuid
 from typing import Any
 
-from app.agent.llm import LLMClient, LLMUnavailable, build_client
-from app.agent.prompts import SYSTEM_PROMPT, build_diagnosis_prompt
-from app.config import LLMSettings
-from app.database import Database
-from app.services import store
-from app.services.registry import get_definition
+from core.agent.llm import LLMClient, LLMUnavailable, build_client
+from core.agent.prompts import SYSTEM_PROMPT, build_diagnosis_prompt
+from core.config import LLMSettings
+from core.database import Database
+from core.services import store
+from core.services.registry import get_definition
 
 LOGGER = logging.getLogger(__name__)
 

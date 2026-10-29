@@ -10,7 +10,7 @@ import json
 import time
 from typing import Any
 
-from app.database import Database
+from core.database import Database
 
 JsonDict = dict[str, Any]
 

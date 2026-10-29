@@ -6,9 +6,9 @@ import time
 
 from fastapi import APIRouter, Depends, Request
 
-from app import __version__
-from app.agent.agent import IncidentAgent
-from app.api.deps import (
+from core import __version__
+from core.agent.agent import IncidentAgent
+from core.api.deps import (
     get_agent_or_none,
     get_app_settings,
     get_chaos_manager,
@@ -16,16 +16,16 @@ from app.api.deps import (
     get_incident_agent,
     get_llm_settings,
 )
-from app.api.schemas import (
+from core.api.schemas import (
     HealthOut,
     OverviewOut,
     OverviewSummary,
 )
-from app.api.serializers import to_metric, to_service
-from app.chaos.manager import ChaosManager
-from app.config import AppSettings, LLMSettings
-from app.database import Database
-from app.services import store
+from core.api.serializers import to_metric, to_service
+from core.chaos.manager import ChaosManager
+from core.config import AppSettings, LLMSettings
+from core.database import Database
+from core.services import store
 
 router = APIRouter(tags=["system"])
 

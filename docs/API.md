@@ -26,6 +26,31 @@ The API runs separately from the sample-stack gateway on port 8000.
 }
 ```
 
+## Agent
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/agent/status` | Provider mode and model, never a key |
+| `POST` | `/agent/plan` | Ask the LLM for one validated experiment plan |
+
+### `POST /agent/plan`
+
+```json
+{
+  "fault": "latency",
+  "target": "payments",
+  "hypothesis": "Delaying payments should expose missing timeouts in orders.",
+  "value": 2000.0,
+  "source": "llm"
+}
+```
+
+The backend sends the topology to Ollama (`OLLAMA_BASE_URL`, default
+`http://localhost:11434`) or the configured OpenAI-compatible endpoint. The
+JSON is validated by Pydantic. After two invalid responses, or when no provider
+is available, the planner falls back to the service with the most direct callers
+(`db`) and returns `"source": "rule"`.
+
 ## Experiments
 
 | Method | Path | Description |
@@ -120,14 +145,27 @@ JSON frames:
 ```json
 {"type": "state", "service": "payments", "status": "warn", "latency_ms": 2013.0}
 {"type": "log", "level": "warn", "text": "Fault active: latency on payments"}
+{"type": "log", "level": "info", "text": "agent: tool read_metrics(all services) during baseline"}
 {"type": "metrics", "gateway_latency": 2073.3, "error_rate": 0.0}
 {"type": "score", "value": 40.0}
-{"type": "postmortem", "text": "Experiment #1: injected latency ..."}
+{
+  "type": "postmortem",
+  "text": "Root cause: ... Blast radius: ... Fixes: 1) ... 2) ... 3) ...",
+  "source": "llm",
+  "structured": {
+    "root_cause": "...",
+    "blast_radius": "...",
+    "fixes": ["...", "...", "..."],
+    "word_count": 74
+  }
+}
 ```
 
 A `state` event is sent for every service on every collector tick (1 s), then
-one `metrics` and one `score` event. The stream ends each run with `score` and
-`postmortem`. A small client is included:
+one `metrics` and one `score` event. The runner also streams the agent's steps
+as `log` frames (`agent: ...`). The stream ends each run with `score` and
+`postmortem`; `source` is `llm` or `template`, and `structured` carries the
+same three-section report. A small client is included:
 
 ```bash
 cd backend

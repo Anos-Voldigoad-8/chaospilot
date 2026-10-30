@@ -17,6 +17,8 @@ from contextlib import suppress
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
+from agent.models import Postmortem
+from agent.service import AgentService
 from api_config import ApiSettings
 from chaos.engine import ChaosEngine
 from collector import Collector
@@ -85,6 +87,7 @@ class ExperimentRunner:
         engine: ChaosEngine | None = None,
         stack: StackController | None = None,
         collector_factory: CollectorFactory | None = None,
+        agent: AgentService | None = None,
     ) -> None:
         self.database = database
         self.hub = hub
@@ -94,6 +97,7 @@ class ExperimentRunner:
             directory=self.settings.stack_directory, host=self.settings.host
         )
         self.collector_factory = collector_factory or self._default_collector_factory
+        self.agent = agent
 
         self._task: asyncio.Task[None] | None = None
         self._run: RunContext | None = None
@@ -179,6 +183,7 @@ class ExperimentRunner:
                 f"Experiment #{run.id} started: {run.fault} on {run.target} "
                 f"(fixes={'on' if run.fixes else 'off'})",
             )
+            await self._agent_step("on_start", run)
             self.database.update_run(run.id, status="preparing")
 
             healthy = await self._prepare_stack(run)
@@ -209,6 +214,7 @@ class ExperimentRunner:
                 f"Baseline complete: gateway p50 "
                 f"{self._baseline.get('gateway', 'n/a')}ms",
             )
+            await self._agent_step("on_baseline", run)
 
             run.fault_started = time.time()
             self._window = (
@@ -233,6 +239,7 @@ class ExperimentRunner:
                 "warn",
                 f"Fault active: {injection.get('action', run.fault)} on {run.target}",
             )
+            await self._agent_step("on_fault", run)
 
             await asyncio.sleep(self.settings.fault_seconds)
 
@@ -252,6 +259,7 @@ class ExperimentRunner:
                 "info",
                 f"Recovery applied; observing for {self.settings.recovery_seconds:.0f}s",
             )
+            await self._agent_step("on_recovery", run)
             await asyncio.sleep(self.settings.recovery_seconds)
             run.recovery_end = time.time()
             self.database.update_run(run.id, status="completed")
@@ -301,7 +309,18 @@ class ExperimentRunner:
                 f"Experiment #{run.id} {status}; resilience score {final_score:.0f}/100",
             )
             await self._safe_broadcast({"type": "score", "value": final_score})
-            await self._safe_broadcast({"type": "postmortem", "text": postmortem})
+            agent_report = await self._agent_finish(run)
+            if agent_report is None:
+                await self._safe_broadcast({"type": "postmortem", "text": postmortem})
+            else:
+                await self._safe_broadcast(
+                    {
+                        "type": "postmortem",
+                        "text": agent_report.text,
+                        "source": agent_report.source,
+                        "structured": agent_report.model_dump(),
+                    }
+                )
 
             if self._run is run:
                 self._run = None
@@ -474,6 +493,31 @@ class ExperimentRunner:
             baseline_gateway=self._baseline.get("gateway"),
             error_rate=error_rate,
         )
+
+    async def _agent_step(self, action: str, run: RunContext) -> None:
+        """Run one agent hook without letting it break the experiment."""
+        if self.agent is None:
+            return
+        try:
+            await getattr(self.agent, action)(run)
+        except Exception as exc:
+            LOGGER.warning("agent step %s failed: %s", action, type(exc).__name__)
+            await self._safe_log(
+                "warn", f"agent: {action} failed; continuing without it"
+            )
+
+    async def _agent_finish(self, run: RunContext) -> Postmortem | None:
+        """Generate the agent postmortem, falling back to the deterministic one."""
+        if self.agent is None:
+            return None
+        try:
+            return await self.agent.finish(run)
+        except Exception as exc:
+            LOGGER.warning("agent postmortem failed: %s", type(exc).__name__)
+            await self._safe_log(
+                "warn", "agent: postmortem failed; using deterministic summary"
+            )
+            return None
 
     async def _safe_log(self, level: str, text: str) -> None:
         with suppress(Exception):

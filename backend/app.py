@@ -11,6 +11,8 @@ from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconn
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from agent.llm import default_client
+from agent.service import AgentService
 from api_config import ApiSettings
 from chaos.engine import ChaosEngine
 from db import ChaosDatabase
@@ -27,6 +29,7 @@ from ws import EventHub
 LOGGER = logging.getLogger(__name__)
 
 MAX_HISTORY = 500
+DEFAULT_AGENT_LLM = object()
 
 
 class ExperimentRequest(BaseModel):
@@ -49,6 +52,8 @@ def create_app(
     engine: ChaosEngine | None = None,
     stack: StackController | None = None,
     collector_factory: CollectorFactory | None = None,
+    agent: AgentService | None = None,
+    agent_llm: object | None = DEFAULT_AGENT_LLM,
 ) -> FastAPI:
     config = settings or ApiSettings.from_env()
     hub = EventHub()
@@ -56,6 +61,10 @@ def create_app(
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         database = ChaosDatabase(config.db_path)
+        llm = default_client() if agent_llm is DEFAULT_AGENT_LLM else agent_llm
+        agent_service = agent or AgentService(
+            database, hub, llm=llm, engine=engine
+        )
         runner = ExperimentRunner(
             database,
             hub,
@@ -63,10 +72,12 @@ def create_app(
             engine=engine,
             stack=stack,
             collector_factory=collector_factory,
+            agent=agent_service,
         )
         application.state.database = database
         application.state.runner = runner
         application.state.hub = hub
+        application.state.agent = agent_service
         LOGGER.info(
             "ChaosPilot API ready (db=%s, stack=%s, baseline=%ss, fault=%ss)",
             database.path,
@@ -129,6 +140,17 @@ def create_app(
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @application.get("/agent/status")
+    async def agent_status(request: Request) -> dict[str, object]:
+        service: AgentService = request.app.state.agent
+        return service.status()
+
+    @application.post("/agent/plan")
+    async def agent_plan(request: Request) -> dict[str, object]:
+        service: AgentService = request.app.state.agent
+        plan = await service.plan()
+        return plan.model_dump()
 
     @application.get("/experiments")
     async def list_experiments(

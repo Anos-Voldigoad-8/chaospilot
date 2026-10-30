@@ -53,6 +53,25 @@ class FakeStack:
         return {"ok": True, "unreachable": [], "checked": {}}
 
 
+class FakePostmortemLLM:
+    """Only the postmortem call is expected during an experiment run."""
+
+    name = "fake"
+    model = "fake-1"
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def complete(self, system_prompt: str, user_prompt: str) -> str:
+        self.calls += 1
+        return (
+            '{"root_cause": "Injected latency on the target slowed callers.", '
+            '"blast_radius": "Callers and the gateway degraded for users.", '
+            '"fixes": ["Add timeouts.", "Add a circuit breaker.", '
+            '"Alert on p95 latency."]}'
+        )
+
+
 class FakeCollector:
     """Emits one synthetic batch every 20ms instead of probing the stack."""
 
@@ -111,7 +130,7 @@ def fake_collector_factory(database, *, label_resolver, on_samples):
     )
 
 
-def build_app(tmp_path: Path):
+def build_app(tmp_path: Path, *, agent_llm: Any = None):
     settings = ApiSettings(
         db_path=tmp_path / "phase3.db",
         baseline_seconds=0.15,
@@ -126,6 +145,7 @@ def build_app(tmp_path: Path):
         engine=engine,
         stack=stack,
         collector_factory=fake_collector_factory,
+        agent_llm=agent_llm,
     )
     return app, engine, stack
 
@@ -241,6 +261,40 @@ def test_experiment_streams_events_and_persists(tmp_path: Path) -> None:
 
         missing = client.get("/experiments/999999")
         assert missing.status_code == 404
+
+
+def test_experiment_streams_agent_steps_and_mocked_postmortem(tmp_path: Path) -> None:
+    llm = FakePostmortemLLM()
+    app, _, _ = build_app(tmp_path, agent_llm=llm)
+    with TestClient(app) as client:
+        with client.websocket_connect("/ws") as websocket:
+            websocket.receive_json()
+            response = client.post(
+                "/experiments/run",
+                json={"fault": "latency", "target": "payments", "fixes": False},
+            )
+            assert response.status_code == 202
+
+            events: list[dict[str, Any]] = []
+            for _ in range(2_000):
+                event = websocket.receive_json()
+                events.append(event)
+                if event["type"] == "postmortem":
+                    break
+            else:
+                raise AssertionError("no agent postmortem event received")
+
+        logs = [event["text"] for event in events if event["type"] == "log"]
+        assert any(text.startswith("agent:") for text in logs)
+        assert any("read_metrics" in text for text in logs)
+        assert any("postmortem ready" in text for text in logs)
+
+        postmortem = next(event for event in events if event["type"] == "postmortem")
+        assert postmortem["source"] == "llm"
+        assert postmortem["structured"]["root_cause"]
+        assert len(postmortem["structured"]["fixes"]) == 3
+        assert postmortem["structured"]["word_count"] <= 120
+        assert llm.calls == 1
 
 
 def test_fixes_restarts_stack_with_resilient_mode(tmp_path: Path) -> None:

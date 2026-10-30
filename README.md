@@ -28,6 +28,7 @@ in one small, self-hosted lab.
 | --- | --- |
 | `sample-stack/` | Docker Compose stack with a gateway and five small FastAPI services |
 | `backend/` | FastAPI app: chaos engine, collector, ML, LLM agent, API |
+| `backend/ml/` | Phase 5 dataset generator, window features, Isolation Forest and detector |
 | `frontend/` | React + Vite + Tailwind dashboard |
 | `docs/` | Architecture, phases, API reference, security and operations |
 
@@ -72,6 +73,7 @@ and configure Ollama (or an OpenAI-compatible key) for live LLM analysis.
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [Phase plan](docs/PHASES.md)
+- [Anomaly model pipeline](backend/ml/README.md)
 - [API reference](docs/API.md)
 - [Security policy](docs/SECURITY.md)
 - [Local operations](docs/OPERATIONS.md)

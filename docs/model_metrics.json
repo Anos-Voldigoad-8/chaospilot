@@ -1,0 +1,210 @@
+{
+  "generated_at": "2026-10-30T20:02:22Z",
+  "dataset": {
+    "path": "backend/data/ml_dataset.db",
+    "source": "simulated",
+    "samples": 6480,
+    "experiments": 24,
+    "fault_samples": 1440,
+    "healthy_only_samples": 3600,
+    "windows": 5604,
+    "class_counts": {
+      "normal": 5064,
+      "fault": 540
+    },
+    "healthy_seconds": 600.0,
+    "window_seconds": 5.0,
+    "feature_names": [
+      "latency_mean",
+      "latency_max",
+      "error_rate",
+      "up_ratio",
+      "latency_slope",
+      "dep_latency_mean",
+      "dep_latency_max",
+      "dep_error_rate",
+      "dep_up_ratio",
+      "dep_latency_slope"
+    ]
+  },
+  "model": {
+    "type": "IsolationForest",
+    "sklearn_version": "1.9.1",
+    "params": {
+      "n_estimators": 200,
+      "contamination": 0.02,
+      "random_state": 42
+    },
+    "calibration": {
+      "center": 0.0,
+      "scale": 0.05221
+    },
+    "trained_windows": 2634
+  },
+  "split": {
+    "train_windows": 2634,
+    "validation_windows": 1362,
+    "test_windows": 1368,
+    "train_fault_windows": 0,
+    "validation_fault_windows": 180,
+    "test_fault_windows": 180,
+    "train_experiments": [
+      1,
+      4,
+      9,
+      12,
+      14,
+      17,
+      19,
+      24
+    ],
+    "validation_experiments": [
+      2,
+      5,
+      7,
+      10,
+      15,
+      18,
+      20,
+      22
+    ],
+    "test_experiments": [
+      3,
+      6,
+      8,
+      11,
+      13,
+      16,
+      21,
+      23
+    ]
+  },
+  "threshold": 0.5719,
+  "validation": {
+    "true_positive": 174,
+    "false_positive": 8,
+    "false_negative": 6,
+    "true_negative": 1174,
+    "precision": 0.956,
+    "recall": 0.9667,
+    "f1": 0.9613,
+    "accuracy": 0.9897,
+    "specificity": 0.9932,
+    "support": {
+      "total": 1362,
+      "normal": 1182,
+      "fault": 180
+    },
+    "confusion_matrix": [
+      [
+        1174,
+        8
+      ],
+      [
+        6,
+        174
+      ]
+    ],
+    "score_stats": {
+      "normal": {
+        "count": 1182,
+        "mean": 0.0262,
+        "p05": 0.0037,
+        "p50": 0.0049,
+        "p95": 0.0766
+      },
+      "fault": {
+        "count": 180,
+        "mean": 0.84,
+        "p05": 0.6029,
+        "p50": 0.8925,
+        "p95": 0.9619
+      }
+    },
+    "per_fault": {
+      "kill": {
+        "fault_windows": 72,
+        "detected": 72,
+        "recall": 1.0
+      },
+      "latency": {
+        "fault_windows": 54,
+        "detected": 50,
+        "recall": 0.9259
+      },
+      "memory": {
+        "fault_windows": 54,
+        "detected": 52,
+        "recall": 0.963
+      }
+    }
+  },
+  "test": {
+    "true_positive": 173,
+    "false_positive": 4,
+    "false_negative": 7,
+    "true_negative": 1184,
+    "precision": 0.9774,
+    "recall": 0.9611,
+    "f1": 0.9692,
+    "accuracy": 0.992,
+    "specificity": 0.9966,
+    "support": {
+      "total": 1368,
+      "normal": 1188,
+      "fault": 180
+    },
+    "confusion_matrix": [
+      [
+        1184,
+        4
+      ],
+      [
+        7,
+        173
+      ]
+    ],
+    "score_stats": {
+      "normal": {
+        "count": 1188,
+        "mean": 0.0333,
+        "p05": 0.0037,
+        "p50": 0.0053,
+        "p95": 0.1467
+      },
+      "fault": {
+        "count": 180,
+        "mean": 0.8355,
+        "p05": 0.5845,
+        "p50": 0.8917,
+        "p95": 0.9516
+      }
+    },
+    "per_fault": {
+      "kill": {
+        "fault_windows": 54,
+        "detected": 54,
+        "recall": 1.0
+      },
+      "latency": {
+        "fault_windows": 72,
+        "detected": 68,
+        "recall": 0.9444
+      },
+      "memory": {
+        "fault_windows": 54,
+        "detected": 51,
+        "recall": 0.9444
+      }
+    }
+  },
+  "artifacts": {
+    "model": "backend/models/isolation_forest.joblib",
+    "metrics": "docs/model_metrics.json",
+    "confusion_matrix": "docs/confusion_matrix.png"
+  },
+  "recommendations": [
+    "This run uses simulated telemetry. Re-generate with --source stack on the real Compose stack before trusting the absolute scores; synthetic faults are cleaner than container-level failures.",
+    "Evaluate on non-overlapping windows (or report confidence intervals): adjacent 1-second windows share samples, so the point estimates are optimistic."
+  ]
+}

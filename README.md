@@ -59,6 +59,10 @@ docker compose up --build
 
 Open <http://localhost:5173>. API docs live at <http://localhost:8090/docs>.
 
+The dashboard streams the service map, resilience score and telemetry over
+`/ws`. Without a backend (or Docker), open
+<http://localhost:5173/?mock=1> to replay a scripted experiment.
+
 ChaosPilot starts in **simulation mode** (`CHAOSPILOT_SIMULATION_MODE=true`),
 so you can explore the dashboard, anomaly detection and the agent without
 Docker or an LLM. Set `CHAOSPILOT_DOCKER_ENABLED=true` to inject real faults,

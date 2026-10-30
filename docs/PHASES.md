@@ -110,16 +110,18 @@ curl http://localhost:8000/api/overview
 
 **Deliverables**
 
-- React + Vite + TypeScript + Tailwind shell.
-- React Flow topology with health colouring.
-- Recharts metrics chart per service.
-- Anomaly feed, fault injection panel, incident/agent drawer.
+- React + Vite + TypeScript + Tailwind HUD shell.
+- React Flow service map with health colouring and failure propagation.
+- Animated resilience gauge, Recharts p95/error stream.
+- Fault injection panel with run history.
+- Auto-scrolling agent console and typed postmortem.
+- `?mock=1` scripted replay so the UI works without a backend.
 
 **Exit criteria**
 
-- [ ] `npm run build` succeeds.
-- [ ] Dashboard renders simulated data with the backend running.
-- [ ] Fault injection round-trip works from the UI.
+- [x] `npm run build` succeeds.
+- [x] Dashboard renders simulated data (mock feed).
+- [ ] Fault injection round-trip works against the live backend and Docker.
 - [ ] Bundle contains no secret (`npm run build` + grep).
 
 ## Phase 6 — End-to-end demo

@@ -1,14 +1,13 @@
 import type {
-  Anomaly,
-  Fault,
-  FaultPayload,
-  Health,
-  Incident,
-  MetricsResponse,
-  Overview,
-} from "../types/api";
+  ExperimentDetail,
+  ExperimentSummary,
+  RunRequest,
+  Topology,
+} from "../types/chaos";
 
-// Only public configuration from import.meta.env is read here. No secrets.
+// Public, non-secret configuration only. The Vite dev proxy forwards /api,
+// /topology, /experiments and /ws to the backend, so an empty base means
+// "same origin" and keeps the browser free of hardcoded ports.
 const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 
 export class ApiError extends Error {
@@ -31,14 +30,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
 
   if (!response.ok) {
-    let detail = `Request failed with status ${response.status}`;
+    let detail = `request failed (${response.status})`;
     try {
-      const body = (await response.json()) as { detail?: string | unknown };
+      const body = (await response.json()) as { detail?: unknown };
       if (typeof body.detail === "string") {
         detail = body.detail;
       }
     } catch {
-      // Keep the generic message when the body is not JSON.
+      // Non-JSON error bodies keep the status message.
     }
     throw new ApiError(detail, response.status);
   }
@@ -47,39 +46,30 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  health: () => request<Health>("/health"),
-  overview: () => request<Overview>("/api/overview"),
-  metrics: (serviceId: string, minutes = 15) =>
-    request<MetricsResponse>(
-      `/api/metrics?service_id=${encodeURIComponent(serviceId)}&minutes=${minutes}`,
-    ),
-  anomalies: (limit = 50) => request<Anomaly[]>(`/api/anomalies?limit=${limit}`),
-  train: () =>
-    request<{ trained: boolean; samples: number; services: number }>(
-      "/api/anomalies/train",
-      { method: "POST" },
-    ),
-  detect: () =>
-    request<{ detected: number; anomalies: Anomaly[] }>("/api/anomalies/detect", {
-      method: "POST",
-    }),
-  faults: () => request<Fault[]>("/api/faults"),
-  injectFault: (payload: FaultPayload) =>
-    request<Fault>("/api/faults", {
+  topology: () => request<Topology>("/topology"),
+  runExperiment: (payload: RunRequest) =>
+    request<ExperimentSummary>("/experiments/run", {
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  recoverFault: (faultId: string) =>
-    request<Fault>(`/api/faults/${encodeURIComponent(faultId)}/recover`, {
-      method: "POST",
-    }),
-  diagnose: (serviceId: string, anomalyId?: number) =>
-    request<Incident>("/api/agent/diagnose", {
-      method: "POST",
-      body: JSON.stringify({
-        service_id: serviceId,
-        anomaly_id: anomalyId ?? null,
-      }),
-    }),
-  incidents: () => request<Incident[]>("/api/incidents?limit=20"),
+  experiments: (limit = 12) =>
+    request<{ experiments: ExperimentSummary[]; count: number }>(
+      `/experiments?limit=${limit}`,
+    ),
+  experiment: (id: number) => request<ExperimentDetail>(`/experiments/${id}`),
 };
+
+/**
+ * WebSocket location resolution, most specific first:
+ *   1. `?ws=ws://host:port/ws` (handy while debugging a remote backend)
+ *   2. `VITE_WS_URL`
+ *   3. same-origin `/ws`, proxied to the backend by Vite in dev
+ */
+export function resolveWsUrl(): string {
+  const override = new URLSearchParams(window.location.search).get("ws");
+  if (override) return override;
+  const configured = import.meta.env.VITE_WS_URL;
+  if (configured) return configured;
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${protocol}//${window.location.host}/ws`;
+}

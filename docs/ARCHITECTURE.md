@@ -157,12 +157,20 @@ a state-of-the-art detector.
 
 ## 7. Frontend
 
-- Single-page dashboard with a service topology (React Flow), a time-series
-  chart (Recharts), an anomaly feed, a fault injection panel and an incident
-  report drawer.
-- Polls `/api/overview` every 5 seconds; mutations invalidate immediately.
-- `src/lib/api.ts` is the only file that knows URLs. It reads
-  `VITE_API_BASE_URL` (public, non-secret).
+- Single-page HUD dashboard: React Flow service map with status colours and
+  failure propagation along call edges, an animated resilience gauge, a
+  Recharts p95/error stream, a colour-coded agent console and a typed-out
+  postmortem.
+- Reads the Phase 3 API (`/topology`, `/experiments`) and subscribes to `/ws`
+  for `state`, `metrics`, `score`, `log` and `postmortem` events. The
+  WebSocket reconnects with exponential backoff.
+- Zustand holds all client state; the bundled topology is used for first paint
+  and as a fallback when the API is down.
+- `src/lib/api.ts` is the only file that knows URLs. It reads the public,
+  non-secret `VITE_API_BASE_URL` and `VITE_WS_URL`; empty values use the Vite
+  proxy on `127.0.0.1:8090`.
+- `?mock=1` replays a scripted experiment with the same event shapes, so the
+  UI is fully explorable without a backend.
 - No key, token or password ever reaches the bundle. Anything secret is
   requested from the backend.
 

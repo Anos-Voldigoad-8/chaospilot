@@ -46,8 +46,13 @@ npm install
 npm run dev
 ```
 
-Vite serves <http://localhost:5173> and proxies `/api` + `/health` to the
-backend.
+Vite serves <http://localhost:5173> and proxies `/topology`, `/experiments`,
+`/health` and `/ws` to the backend on `127.0.0.1:8090`. Start the backend
+first; the dashboard shows the link state and keeps retrying when it is down.
+
+To explore the dashboard without a backend (or while Docker is unavailable),
+open <http://localhost:5173/?mock=1>. Mock mode replays a compressed scripted
+experiment using the same event shapes as the live stream.
 
 ### Sample stack
 

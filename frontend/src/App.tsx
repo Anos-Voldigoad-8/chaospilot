@@ -1,182 +1,60 @@
-import { useEffect, useState } from "react";
-import { AlertTriangle, Radar } from "lucide-react";
-import { AgentPanel } from "./components/AgentPanel";
-import { AnomalyFeed } from "./components/AnomalyFeed";
-import { FaultPanel } from "./components/FaultPanel";
-import { Header } from "./components/Header";
-import { IncidentHistory } from "./components/IncidentHistory";
-import { MetricsChart } from "./components/MetricsChart";
-import { Panel } from "./components/Panel";
-import { SummaryCards } from "./components/SummaryCards";
-import { Topology } from "./components/Topology";
-import { useDashboard } from "./hooks/useDashboard";
-import { useMetrics } from "./hooks/useMetrics";
-import { api } from "./lib/api";
+import { useEffect, useRef } from "react";
+import { AgentConsole } from "./components/AgentConsole";
+import { ControlPanel } from "./components/ControlPanel";
+import { LiveMetrics } from "./components/LiveMetrics";
+import { PostmortemPanel } from "./components/PostmortemPanel";
+import { ServiceMap } from "./components/ServiceMap";
+import { TopBar } from "./components/TopBar";
+import { useWebSocket } from "./hooks/useWebSocket";
+import { useChaosStore } from "./store/useChaosStore";
 
 export default function App() {
-  const { data, error, loading, refresh } = useDashboard(5000);
-  const [selectedService, setSelectedService] = useState("checkout");
-  const [scanning, setScanning] = useState(false);
-  const [actionMessage, setActionMessage] = useState<string | null>(null);
+  useWebSocket();
 
-  const metrics = useMetrics(selectedService, 15);
+  const mockMode = useChaosStore((state) => state.mockMode);
+  const mockStarted = useRef(false);
 
   useEffect(() => {
-    if (data && !data.services.some((service) => service.id === selectedService)) {
-      setSelectedService(data.services[0]?.id ?? "checkout");
-    }
-  }, [data, selectedService]);
-
-  const scan = async () => {
-    setScanning(true);
-    setActionMessage(null);
-    try {
-      const result = await api.detect();
-      setActionMessage(
-        result.detected > 0
-          ? `${result.detected} new anomal${result.detected === 1 ? "y" : "ies"} detected`
-          : "No new anomalies above the learned baseline",
-      );
-      await refresh();
-    } catch (err) {
-      setActionMessage(err instanceof Error ? err.message : "Detection failed");
-    } finally {
-      setScanning(false);
-    }
-  };
-
-  if (!data) {
-    return (
-      <div className="min-h-screen bg-ink-950">
-        <div className="mx-auto max-w-[1600px] px-4 py-6 lg:px-8">
-          <Header data={null} error={error} onRefresh={() => void refresh()} />
-          <div className="mt-16 text-center">
-            {loading && !error ? (
-              <>
-                <Radar className="mx-auto h-8 w-8 animate-pulse text-cyan-400" aria-hidden />
-                <p className="mt-3 text-sm text-slate-400">Connecting to the ChaosPilot backend…</p>
-                <p className="mt-1 text-xs text-slate-600">
-                  Start it with <code className="font-mono">uvicorn app:app --port 8090</code>
-                </p>
-              </>
-            ) : (
-              <>
-                <AlertTriangle className="mx-auto h-8 w-8 text-rose-400" aria-hidden />
-                <p className="mt-3 text-sm text-rose-200">Backend unreachable</p>
-                <p className="mt-1 text-xs text-slate-500">{error}</p>
-                <button
-                  type="button"
-                  onClick={() => void refresh()}
-                  className="btn mx-auto mt-4 border-white/10 bg-white/5 text-slate-300"
-                >
-                  Retry
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  }
+    if (!mockMode) return;
+    const timer = window.setTimeout(() => {
+      if (mockStarted.current) return;
+      mockStarted.current = true;
+      void useChaosStore.getState().runExperiment();
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [mockMode]);
 
   return (
-    <div className="min-h-screen bg-ink-950">
-      <div className="mx-auto max-w-[1600px] px-4 py-6 lg:px-8">
-        <Header data={data} error={error} onRefresh={() => void refresh()} />
+    <div className="min-h-screen">
+      <div className="scanlines" aria-hidden />
+      <TopBar />
 
-        {error ? (
-          <div className="mt-4 flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-200">
-            <AlertTriangle className="h-3.5 w-3.5" />
-            Showing the last successful snapshot. {error}
+      <main className="mx-auto w-full max-w-[1700px] px-2.5 pb-5 pt-3 sm:px-4">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[300px_minmax(0,1fr)_340px]">
+          <div className="order-2 min-w-0 xl:order-none">
+            <ControlPanel />
           </div>
-        ) : null}
-
-        <SummaryCards summary={data.summary} />
-
-        <div className="mt-6 grid gap-5 xl:grid-cols-3">
-          <Panel
-            title="Service topology"
-            subtitle="Click a node to focus metrics, faults and diagnosis"
-            className="xl:col-span-2"
-          >
-            <Topology
-              services={data.services}
-              selectedService={selectedService}
-              onSelect={setSelectedService}
-            />
-          </Panel>
-
-          <Panel title="Chaos console" subtitle="Inject a fault, then watch the telemetry react">
-            <FaultPanel
-              services={data.services}
-              selectedService={selectedService}
-              activeFaults={data.active_faults}
-              onChanged={refresh}
-            />
-          </Panel>
-
-          <Panel
-            title="Telemetry"
-            subtitle={`15 minute window · ${selectedService}`}
-            className="xl:col-span-2"
-          >
-            <MetricsChart
-              services={data.services}
-              selectedService={selectedService}
-              onSelect={setSelectedService}
-              points={metrics.points}
-              loading={metrics.loading}
-              error={metrics.error}
-            />
-          </Panel>
-
-          <Panel
-            title="Anomaly feed"
-            subtitle={
-              actionMessage ??
-              "Isolation Forest + robust deviation scoring on the latest samples"
-            }
-            actions={
-              <button
-                type="button"
-                onClick={() => void scan()}
-                disabled={scanning}
-                className="btn border-white/10 bg-white/5 text-slate-300 hover:border-cyan-400/30 hover:text-cyan-200 disabled:opacity-50"
-              >
-                <Radar className={`h-3.5 w-3.5 ${scanning ? "animate-pulse" : ""}`} />
-                {scanning ? "Scanning…" : "Scan now"}
-              </button>
-            }
-          >
-            <AnomalyFeed anomalies={data.anomalies} />
-          </Panel>
-
-          <Panel
-            title="Incident analyst"
-            subtitle="Grounded diagnosis from metrics, anomalies and the fault timeline"
-            className="xl:col-span-2"
-          >
-            <AgentPanel
-              selectedService={selectedService}
-              incidents={data.incidents}
-              llm={data.llm}
-              onDiagnosed={refresh}
-            />
-          </Panel>
-
-          <Panel title="Incident history" subtitle="Most recent reports stored in SQLite">
-            <IncidentHistory incidents={data.incidents} />
-          </Panel>
+          <div className="order-1 min-w-0 md:col-span-2 xl:order-none xl:col-span-1">
+            <ServiceMap />
+          </div>
+          <div className="order-3 min-w-0 xl:order-none xl:col-span-1">
+            <LiveMetrics />
+          </div>
         </div>
 
-        <footer className="mt-8 flex flex-col items-start justify-between gap-2 border-t border-white/5 pt-4 text-[11px] text-slate-600 sm:flex-row sm:items-center">
+        <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-[1.25fr_1fr]">
+          <AgentConsole />
+          <PostmortemPanel />
+        </div>
+
+        <footer className="mt-4 flex flex-col items-start justify-between gap-1 border-t border-neon-cyan/10 pt-3 text-[8px] uppercase tracking-[0.18em] text-slate-700 sm:flex-row sm:items-center">
           <span>
-            ChaosPilot · local chaos engineering lab ·{" "}
-            {data.llm.provider === "ollama" ? "Ollama" : "hosted LLM"} calls stay in the backend
+            chaospilot // local chaos lab //{" "}
+            {mockMode ? "mock feed active" : "backend :8090"}
           </span>
-          <span>No secrets in the browser · telemetry stored in SQLite</span>
+          <span>telemetry in sqlite · llm calls stay in the backend</span>
         </footer>
-      </div>
+      </main>
     </div>
   );
 }

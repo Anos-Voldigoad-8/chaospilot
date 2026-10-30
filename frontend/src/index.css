@@ -7,22 +7,29 @@
     color-scheme: dark;
   }
 
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
   body {
-    @apply min-h-screen bg-ink-950 font-sans text-slate-200 antialiased;
+    @apply bg-void-950 font-mono text-[13px] text-slate-300 antialiased;
     background-image:
-      radial-gradient(ellipse 80% 50% at 50% -20%, rgba(34, 211, 238, 0.08), transparent),
-      linear-gradient(rgba(148, 163, 184, 0.025) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(148, 163, 184, 0.025) 1px, transparent 1px);
-    background-size: 100% 100%, 48px 48px, 48px 48px;
+      radial-gradient(ellipse 70% 45% at 50% -10%, rgba(32, 231, 222, 0.07), transparent 70%),
+      linear-gradient(rgba(32, 231, 222, 0.028) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(32, 231, 222, 0.028) 1px, transparent 1px);
+    background-size: 100% 100%, 42px 42px, 42px 42px;
+    background-attachment: fixed;
   }
 
   ::selection {
-    @apply bg-cyan-400/20 text-cyan-100;
+    @apply bg-neon-cyan/25 text-neon-ice;
   }
 
   ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 7px;
+    height: 7px;
   }
 
   ::-webkit-scrollbar-track {
@@ -30,45 +37,257 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply rounded-full bg-slate-700/70;
+    background: rgba(32, 231, 222, 0.18);
+    border-radius: 999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(32, 231, 222, 0.32);
   }
 }
 
 @layer components {
-  .panel {
-    @apply rounded-xl border border-white/5 bg-ink-900/70 shadow-lg shadow-black/20 backdrop-blur;
+  .hud-panel {
+    @apply relative border border-neon-cyan/15 bg-void-900/85 shadow-hud backdrop-blur-sm;
   }
 
-  .chip {
-    @apply inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px];
+  .hud-corner {
+    @apply pointer-events-none absolute h-2.5 w-2.5 border-neon-cyan/50;
+    border-style: solid;
+    border-width: 0;
   }
 
-  .btn {
-    @apply inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-[11px] font-medium transition;
+  .hud-corner-tl {
+    @apply -left-px -top-px border-l border-t;
   }
 
-  .field {
-    @apply w-full rounded-md border border-white/10 bg-ink-950/70 px-2.5 py-1.5 text-xs text-slate-200 outline-none transition focus:border-cyan-400/50 focus:ring-1 focus:ring-cyan-400/20;
+  .hud-corner-tr {
+    @apply -right-px -top-px border-r border-t;
   }
 
-  .label {
-    @apply mb-1 block text-[10px] font-medium uppercase tracking-wider text-slate-500;
+  .hud-corner-bl {
+    @apply -bottom-px -left-px border-b border-l;
+  }
+
+  .hud-corner-br {
+    @apply -bottom-px -right-px border-b border-r;
+  }
+
+  .hud-label {
+    @apply text-[9px] font-medium uppercase tracking-[0.24em] text-neon-cyan/55;
+  }
+
+  .hud-value {
+    @apply font-mono tabular-nums tracking-tight text-neon-ice;
+  }
+
+  .hud-select {
+    @apply w-full appearance-none border border-neon-cyan/15 bg-void-950/80 px-2.5 py-2 font-mono text-[12px] uppercase tracking-wider text-neon-ice outline-none transition;
+    background-image: linear-gradient(45deg, transparent 50%, rgba(32, 231, 222, 0.6) 50%),
+      linear-gradient(135deg, rgba(32, 231, 222, 0.6) 50%, transparent 50%);
+    background-position:
+      calc(100% - 14px) 55%,
+      calc(100% - 9px) 55%;
+    background-size: 5px 5px, 5px 5px;
+    background-repeat: no-repeat;
+  }
+
+  .hud-select:hover,
+  .hud-select:focus {
+    @apply border-neon-cyan/45;
+    box-shadow: 0 0 0 1px rgba(32, 231, 222, 0.08), 0 0 18px rgba(32, 231, 222, 0.08);
+  }
+
+  .hud-select:disabled {
+    @apply cursor-not-allowed opacity-40;
+  }
+
+  .hud-chip {
+    @apply inline-flex items-center gap-1 border px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-[0.14em];
+  }
+
+  .scanlines {
+    @apply pointer-events-none fixed inset-0 z-50;
+    background-image: repeating-linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.022) 0px,
+      rgba(255, 255, 255, 0.022) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+    mix-blend-mode: overlay;
+  }
+
+  .scanlines::after {
+    content: "";
+    @apply absolute inset-x-0 top-0 h-24;
+    background: linear-gradient(to bottom, transparent, rgba(32, 231, 222, 0.05), transparent);
+    animation: hud-sweep 7s linear infinite;
   }
 }
 
-/* React Flow dark-theme adjustments */
-.react-flow__controls-button {
-  @apply !border-white/10 !bg-ink-800 !fill-slate-400;
+@layer utilities {
+  .text-glow {
+    text-shadow: 0 0 12px currentColor;
+  }
+
+  .bracket-left::before {
+    content: "[";
+    @apply mr-1 text-neon-cyan/40;
+  }
+
+  .bracket-right::after {
+    content: "]";
+    @apply ml-1 text-neon-cyan/40;
+  }
 }
 
-.react-flow__minimap {
-  @apply !rounded-md;
+/* ------------------------------------------------------------------ */
+/* Service map nodes                                                   */
+/* ------------------------------------------------------------------ */
+.service-node {
+  position: relative;
+  width: 168px;
+  border: 1px solid rgba(32, 231, 222, 0.16);
+  background: linear-gradient(160deg, rgba(14, 23, 32, 0.96), rgba(7, 12, 18, 0.96));
+  padding: 9px 10px 8px;
+  color: #9fe8ef;
+  transition:
+    border-color 260ms ease,
+    box-shadow 260ms ease,
+    color 260ms ease;
 }
 
+.service-node::before,
+.service-node::after {
+  content: "";
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-color: currentColor;
+  border-style: solid;
+  border-width: 0;
+  opacity: 0.6;
+}
+
+.service-node::before {
+  top: -1px;
+  left: -1px;
+  border-top-width: 1px;
+  border-left-width: 1px;
+}
+
+.service-node::after {
+  right: -1px;
+  bottom: -1px;
+  border-right-width: 1px;
+  border-bottom-width: 1px;
+}
+
+.service-node--ok {
+  color: #41f2a6;
+  border-color: rgba(65, 242, 166, 0.34);
+  box-shadow:
+    0 0 16px rgba(65, 242, 166, 0.08),
+    inset 0 0 22px rgba(65, 242, 166, 0.04);
+}
+
+.service-node--ok .service-node__aura {
+  animation: node-breathe 2.6s ease-in-out infinite;
+}
+
+.service-node--warn {
+  color: #ffb224;
+  border-color: rgba(255, 178, 36, 0.65);
+  box-shadow:
+    0 0 20px rgba(255, 178, 36, 0.18),
+    inset 0 0 22px rgba(255, 178, 36, 0.06);
+}
+
+.service-node--warn .service-node__aura {
+  animation: node-breathe 1.1s ease-in-out infinite;
+}
+
+.service-node--bad {
+  color: #ff3d55;
+  border-color: rgba(255, 61, 85, 0.9);
+  box-shadow:
+    0 0 26px rgba(255, 61, 85, 0.3),
+    inset 0 0 26px rgba(255, 61, 85, 0.12);
+  animation:
+    node-shake 0.28s linear infinite,
+    node-flash 1.1s ease-in-out infinite;
+}
+
+.service-node__aura {
+  position: absolute;
+  inset: -5px;
+  border: 1px solid currentColor;
+  opacity: 0.16;
+  pointer-events: none;
+}
+
+.service-node__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 10px currentColor;
+}
+
+.service-node__target {
+  position: absolute;
+  top: -9px;
+  right: 8px;
+  padding: 1px 5px;
+  font-size: 8px;
+  letter-spacing: 0.18em;
+  background: #04070a;
+  border: 1px solid currentColor;
+  color: currentColor;
+}
+
+/* React Flow dark HUD chrome */
 .react-flow__attribution {
-  @apply !bg-transparent !text-slate-700;
+  background: transparent !important;
+  color: rgba(148, 163, 184, 0.18) !important;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 8px;
 }
 
-.react-flow__node {
-  @apply cursor-pointer;
+.react-flow__controls {
+  box-shadow: none;
+}
+
+.react-flow__controls-button {
+  @apply !h-6 !w-6 !border-neon-cyan/15 !bg-void-900 !fill-neon-cyan/50;
+}
+
+.react-flow__controls-button:hover {
+  @apply !bg-void-800 !fill-neon-cyan;
+}
+
+.react-flow__handle {
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  min-width: 1px;
+  min-height: 1px;
+}
+
+.react-flow__edge-path {
+  transition:
+    stroke 320ms ease,
+    stroke-width 320ms ease;
+}
+
+.react-flow__edge.animated path {
+  stroke-dasharray: 5 4;
+  animation: dashdraw 0.55s linear infinite;
+}
+
+@keyframes dashdraw {
+  to {
+    stroke-dashoffset: -9;
+  }
 }

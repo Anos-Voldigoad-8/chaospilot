@@ -36,6 +36,7 @@ export function useWebSocket(): void {
     let retryTimer: number | undefined;
     let attempt = 0;
     let lastState: string = "connecting";
+    let announcedDown = false;
 
     const announce = (state: "connecting" | "live" | "offline") => {
       if (lastState === state) return;
@@ -64,8 +65,10 @@ export function useWebSocket(): void {
 
       socket.onopen = () => {
         attempt = 0;
+        announcedDown = false;
         announce("live");
         ingest({ type: "log", level: "success", text: `websocket link up // ${url}` });
+        void useChaosStore.getState().loadTopology();
         void useChaosStore.getState().refreshExperiments();
       };
 
@@ -83,11 +86,16 @@ export function useWebSocket(): void {
       socket.onclose = () => {
         if (disposed) return;
         announce("offline");
-        ingest({
-          type: "log",
-          level: "warn",
-          text: `link lost // reconnecting to ${url}`,
-        });
+        if (!announcedDown) {
+          announcedDown = true;
+          ingest({
+            type: "log",
+            level: "warn",
+            text:
+              `link lost // backend unreachable at ${url} // ` +
+              "start it with run_demo.ps1 or run_demo.sh; retrying",
+          });
+        }
         scheduleRetry();
       };
     };

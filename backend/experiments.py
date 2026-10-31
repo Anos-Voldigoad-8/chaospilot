@@ -23,13 +23,16 @@ from api_config import ApiSettings
 from chaos.engine import ChaosEngine
 from collector import Collector
 from db import ChaosDatabase, Sample
+from ml.features import affected_services, build_windows
 from runtime import (
     baseline_from_rows,
     build_postmortem,
     phase_stats,
     recent_metrics,
-    resilience_score,
+    resilience_breakdown,
     status_for_sample,
+    statuses_from_rows,
+    worst_status,
 )
 from service_map import GATEWAY_SERVICE, SERVICE_PORTS
 from stack import StackController
@@ -104,8 +107,11 @@ class ExperimentRunner:
         self._window: tuple[float, float] | None = None
         self._baseline: dict[str, float] = {}
         self._last_status: dict[str, str] = {}
+        self._fault_status: dict[str, str] = {}
         self._recent: deque[Sample] = deque(maxlen=60)
         self._lock = asyncio.Lock()
+        self._detector_loaded = False
+        self._detector: Any | None = None
 
     @property
     def running(self) -> bool:
@@ -285,7 +291,8 @@ class ExperimentRunner:
             self.database.end_experiment(run.id, ended=run.recovery_end)
 
             phases = self._phases_for_run(run)
-            final_score = self._final_score(phases)
+            score = self._final_score(run)
+            final_score = score["value"]
             postmortem = build_postmortem(
                 experiment_id=run.id,
                 fault=run.fault,
@@ -306,9 +313,11 @@ class ExperimentRunner:
             )
             await self._safe_log(
                 "info",
-                f"Experiment #{run.id} {status}; resilience score {final_score:.0f}/100",
+                f"Experiment #{run.id} {status}; resilience score {final_score:.0f}/100 "
+                f"({len(score['failed'])} failed, {len(score['degraded'])} degraded, "
+                f"contained={'yes' if score['contained'] else 'no'})",
             )
-            await self._safe_broadcast({"type": "score", "value": final_score})
+            await self._safe_broadcast({"type": "score", **score})
             agent_report = await self._agent_finish(run)
             if agent_report is None:
                 await self._safe_broadcast({"type": "postmortem", "text": postmortem})
@@ -397,6 +406,12 @@ class ExperimentRunner:
             )
             previous = self._last_status.get(sample.service)
             self._last_status[sample.service] = status
+            if sample.label == 1:
+                # The final score uses the worst status reached during the
+                # fault, so the live score must not improve on recovery.
+                self._fault_status[sample.service] = worst_status(
+                    self._fault_status.get(sample.service), status
+                )
             if previous is not None and previous != status:
                 await self.hub.log(
                     "warn" if status != "ok" else "info",
@@ -414,20 +429,101 @@ class ExperimentRunner:
 
         metrics = recent_metrics(list(self._recent))
         await self.hub.broadcast({"type": "metrics", **metrics})
+        anomalies = self._anomaly_scores()
         await self.hub.broadcast(
             {
-                "type": "score",
-                "value": resilience_score(
-                    gateway_latency=metrics["gateway_latency"],
-                    baseline_gateway=self._baseline.get("gateway"),
-                    error_rate=metrics["error_rate"],
-                ),
+                "type": "anomaly",
+                "value": max(anomalies.values(), default=0.0),
+                "services": anomalies,
             }
         )
+        await self.hub.broadcast({"type": "score", **self._live_score()})
+
+    def _live_score(self) -> dict[str, Any]:
+        run = self._run
+        if run is None:
+            return {
+                "value": 100.0,
+                "failed": [],
+                "degraded": [],
+                "contained": True,
+                "bonus": 0.0,
+            }
+        return resilience_breakdown(
+            self._fault_status or self._last_status,
+            fixes=run.fixes,
+            blast_radius=affected_services(run.target),
+        )
+
+    def _anomaly_scores(self) -> dict[str, float]:
+        rows = [
+            {
+                "ts": sample.ts,
+                "service": sample.service,
+                "up": sample.up,
+                "latency_ms": sample.latency_ms,
+                "error": sample.error,
+                "label": sample.label,
+                "experiment_id": sample.experiment_id,
+            }
+            for sample in self._recent
+        ]
+        detector = self._load_detector()
+        if detector is not None and rows:
+            try:
+                windows = build_windows(rows, {}, window_seconds=5.0, min_samples=3)
+                latest: dict[str, float] = {}
+                for window in windows:
+                    latest[window.service] = round(float(detector.score(window)), 4)
+                if latest:
+                    return latest
+            except Exception as exc:  # a broken model must not stop telemetry
+                LOGGER.warning("live anomaly scoring failed: %s", type(exc).__name__)
+        return self._heuristic_anomalies(rows)
+
+    def _load_detector(self) -> Any | None:
+        if self._detector_loaded:
+            return self._detector
+        self._detector_loaded = True
+        try:
+            from ml.detector import AnomalyDetector
+
+            self._detector = AnomalyDetector.load()
+        except Exception:
+            self._detector = None
+        return self._detector
+
+    def _heuristic_anomalies(self, rows: list[dict[str, Any]]) -> dict[str, float]:
+        cutoff = time.time() - 5.0
+        grouped: dict[str, list[dict[str, Any]]] = {}
+        for row in rows:
+            if float(row["ts"]) >= cutoff:
+                grouped.setdefault(str(row["service"]), []).append(row)
+
+        scores: dict[str, float] = {}
+        for service, samples in grouped.items():
+            base = self._baseline.get(service) or 0.0
+            latencies = [
+                float(sample["latency_ms"])
+                for sample in samples
+                if sample.get("latency_ms") is not None
+            ]
+            ratio = max(latencies) / base if latencies and base > 0 else 1.0
+            error_rate = sum(1 for sample in samples if sample.get("error")) / len(samples)
+            down = any(not sample.get("up") for sample in samples)
+            scores[service] = round(
+                min(
+                    1.0,
+                    max(0.0, (ratio - 1.0) / 2.0, error_rate, 0.8 if down else 0.0),
+                ),
+                4,
+            )
+        return scores
 
     def _reset_live_state(self) -> None:
         self._baseline = {}
         self._last_status = {}
+        self._fault_status = {}
         self._recent.clear()
 
     @staticmethod
@@ -482,16 +578,23 @@ class ExperimentRunner:
             for phase, (start, window_end) in windows.items()
         }
 
-    def _final_score(self, phases: dict[str, dict[str, Any]]) -> float:
-        fault = phases.get("fault") or {}
-        samples = int(fault.get("samples") or 0)
-        if samples == 0:
-            return 0.0
-        error_rate = float(fault.get("errors") or 0) / samples
-        return resilience_score(
-            gateway_latency=float(fault.get("p50_ms") or 0.0),
-            baseline_gateway=self._baseline.get("gateway"),
-            error_rate=error_rate,
+    def _final_score(self, run: RunContext) -> dict[str, Any]:
+        start = run.fault_started or run.started
+        end = run.fault_ended or run.recovery_end or time.time()
+        rows = self.database.samples_between(start, end)
+        statuses = statuses_from_rows(rows, self._baseline)
+        if not statuses:
+            return {
+                "value": 0.0,
+                "failed": [],
+                "degraded": [],
+                "contained": False,
+                "bonus": 0.0,
+            }
+        return resilience_breakdown(
+            statuses,
+            fixes=run.fixes,
+            blast_radius=affected_services(run.target),
         )
 
     async def _agent_step(self, action: str, run: RunContext) -> None:

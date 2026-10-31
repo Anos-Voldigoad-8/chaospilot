@@ -36,8 +36,6 @@ const LATENCY_BY_DEPTH: Record<Exclude<FaultKind, "kill">, number[]> = {
 
 const KILL_LATENCY = [0, 260, 320, 340];
 
-const BASE_SCORE = 98;
-
 export interface MockOptions {
   fault: FaultKind;
   target: string;
@@ -85,12 +83,19 @@ interface Snapshot {
   latencies: Record<string, number>;
   errorRate: number;
   score: number;
+  failed: string[];
+  degraded: string[];
+  contained: boolean;
+  bonus: number;
+  anomaly: number;
+  anomalyServices: Record<string, number>;
 }
 
 function snapshot(
   elapsed: number,
   fault: FaultKind,
   depth: Map<string, number>,
+  fixes: boolean,
 ): Snapshot {
   const inFault = elapsed >= BASELINE_END && elapsed < FAULT_END;
   const inBurst =
@@ -122,15 +127,41 @@ function snapshot(
     statuses[node.id] = distance === 0 && inBurst ? "bad" : "warn";
   }
 
-  const gatewayLatency = latencies.gateway ?? 0;
   const errorRate = !inFault ? 0 : fault === "kill" ? 0.5 : inBurst ? 0.17 : 0;
-  const ratio = gatewayLatency / (BASELINE_LATENCY.gateway || 1);
-  const latencyPenalty = inFault ? Math.min(60, Math.max(0, (ratio - 1) * 30)) : 0;
-  const score = inFault
-    ? clamp(BASE_SCORE - latencyPenalty - errorRate * 100, 0, 100)
-    : Math.min(100, BASE_SCORE + Math.random() * 1.5);
+  const failed = Object.entries(statuses)
+    .filter(([, status]) => status === "bad")
+    .map(([service]) => service);
+  const degraded = Object.entries(statuses)
+    .filter(([, status]) => status === "warn")
+    .map(([service]) => service);
+  const blast = new Set(depth.keys());
+  const contained = Object.entries(statuses).every(
+    ([service, status]) => blast.has(service) || status === "ok",
+  );
+  const bonus = fixes && contained ? 10 : 0;
+  const score = clamp(100 - 15 * failed.length - 6 * degraded.length + bonus, 0, 100);
 
-  return { statuses, latencies, errorRate, score };
+  const anomalyServices = Object.fromEntries(
+    DEFAULT_TOPOLOGY.nodes.map((node) => {
+      const distance = depth.get(node.id);
+      if (!inFault || distance === undefined) return [node.id, 0.04];
+      const base = fault === "kill" ? 0.94 : inBurst ? 0.88 : 0.7;
+      return [node.id, clamp(base - distance * 0.09 + Math.random() * 0.03, 0, 1)];
+    }),
+  ) as Record<string, number>;
+
+  return {
+    statuses,
+    latencies,
+    errorRate,
+    score,
+    failed,
+    degraded,
+    contained,
+    bonus,
+    anomaly: inFault ? Math.max(...Object.values(anomalyServices)) : 0.04,
+    anomalyServices,
+  };
 }
 
 export function startMockExperiment(options: MockOptions): MockHandle {
@@ -145,7 +176,7 @@ export function startMockExperiment(options: MockOptions): MockHandle {
   let baselineLogged = false;
   let faultLogged = false;
   let recoveryLogged = false;
-  let lastFaultScore = 0;
+  let lastFault: Snapshot | null = null;
 
   const log = (level: "info" | "warn" | "error" | "success", text: string) =>
     emit({ type: "log", level, text });
@@ -165,7 +196,7 @@ export function startMockExperiment(options: MockOptions): MockHandle {
 
   const tick = () => {
     const elapsed = Date.now() - startedAt;
-    const snap = snapshot(elapsed, fault, depth);
+    const snap = snapshot(elapsed, fault, depth, fixes);
 
     if (!baselineLogged) {
       baselineLogged = true;
@@ -208,17 +239,42 @@ export function startMockExperiment(options: MockOptions): MockHandle {
       error_rate: Number(snap.errorRate.toFixed(3)),
     });
 
+    emit({
+      type: "anomaly",
+      value: Number(snap.anomaly.toFixed(4)),
+      services: snap.anomalyServices,
+    });
+
     if (elapsed >= BASELINE_END && elapsed < FAULT_END) {
-      lastFaultScore = snap.score;
+      lastFault = snap;
     }
-    emit({ type: "score", value: Number(snap.score.toFixed(1)) });
+    emit({
+      type: "score",
+      value: Number(snap.score.toFixed(1)),
+      failed: snap.failed,
+      degraded: snap.degraded,
+      contained: snap.contained,
+      bonus: snap.bonus,
+    });
 
     if (elapsed >= FINISH) {
       stop();
-      const finalScore = Math.round(lastFaultScore || snap.score);
+      const final = lastFault ?? snap;
+      const finalScore = Math.round(final.score);
       log("info", `Experiment ${runLabel} completed; resilience score ${finalScore}/100`);
-      emit({ type: "score", value: finalScore });
-      emit({ type: "postmortem", text: buildPostmortem(runLabel, fault, target, fixes, finalScore) });
+      emit({
+        type: "score",
+        value: finalScore,
+        failed: final.failed,
+        degraded: final.degraded,
+        contained: final.contained,
+        bonus: final.bonus,
+      });
+      emit({
+        type: "postmortem",
+        text: buildPostmortem(runLabel, fault, target, fixes, finalScore),
+        source: "template",
+      });
       onFinished?.();
     }
   };

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { AgentConsole } from "./components/AgentConsole";
+import { ComparePanel } from "./components/ComparePanel";
 import { ControlPanel } from "./components/ControlPanel";
 import { LiveMetrics } from "./components/LiveMetrics";
 import { PostmortemPanel } from "./components/PostmortemPanel";
@@ -42,9 +43,12 @@ export default function App() {
           </div>
         </div>
 
-        <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-[1.25fr_1fr]">
+        <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-[1.2fr_1fr_0.85fr]">
           <AgentConsole />
           <PostmortemPanel />
+          <div className="min-w-0 lg:col-span-2 xl:col-span-1">
+            <ComparePanel />
+          </div>
         </div>
 
         <footer className="mt-4 flex flex-col items-start justify-between gap-1 border-t border-neon-cyan/10 pt-3 text-[8px] uppercase tracking-[0.18em] text-slate-700 sm:flex-row sm:items-center">

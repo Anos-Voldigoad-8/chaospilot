@@ -221,7 +221,22 @@ def test_experiment_streams_events_and_persists(tmp_path: Path) -> None:
                 raise AssertionError("no postmortem event received")
 
         types = {event["type"] for event in events}
-        assert {"state", "metrics", "score", "postmortem", "log"} <= types
+        assert {
+            "state",
+            "metrics",
+            "anomaly",
+            "score",
+            "postmortem",
+            "log",
+        } <= types
+        anomaly = next(event for event in events if event["type"] == "anomaly")
+        assert 0.0 <= anomaly["value"] <= 1.0
+        assert set(anomaly["services"]) == set(ALL_SERVICES)
+        score_events = [event for event in events if event["type"] == "score"]
+        assert score_events
+        assert {"value", "failed", "degraded", "contained", "bonus"} <= set(
+            score_events[-1]
+        )
         assert all(
             event["status"] in {"ok", "warn", "bad"}
             for event in events
@@ -257,7 +272,9 @@ def test_experiment_streams_events_and_persists(tmp_path: Path) -> None:
             > detail["phases"]["baseline"]["p50_ms"] * 3
         )
         assert detail["postmortem"].startswith(f"Experiment #{experiment_id}")
-        assert 0 < detail["score"] <= 100
+        # FakeCollector reports 400ms for all six services against a 10ms
+        # baseline: everyone is degraded, nothing is contained, fixes are off.
+        assert detail["score"] == 64.0
 
         missing = client.get("/experiments/999999")
         assert missing.status_code == 404

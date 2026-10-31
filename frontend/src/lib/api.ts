@@ -1,4 +1,6 @@
 import type {
+  AgentPlan,
+  AgentStatus,
   ExperimentDetail,
   ExperimentSummary,
   RunRequest,
@@ -6,8 +8,8 @@ import type {
 } from "../types/chaos";
 
 // Public, non-secret configuration only. The Vite dev proxy forwards /api,
-// /topology, /experiments and /ws to the backend, so an empty base means
-// "same origin" and keeps the browser free of hardcoded ports.
+// /topology, /experiments, /agent and /ws to the backend, so an empty base
+// means "same origin" and keeps the browser free of hardcoded ports.
 const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 
 export class ApiError extends Error {
@@ -21,13 +23,22 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        ...(init?.headers ?? {}),
+      },
+    });
+  } catch {
+    // fetch only rejects for network/CORS failures, never for HTTP errors.
+    throw new ApiError(
+      `backend unreachable at ${API_BASE || window.location.origin}`,
+      0,
+    );
+  }
 
   if (!response.ok) {
     let detail = `request failed (${response.status})`;
@@ -46,7 +57,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  health: () => request<{ status: string }>("/health"),
   topology: () => request<Topology>("/topology"),
+  agentPlan: () =>
+    request<AgentPlan>("/agent/plan", {
+      method: "POST",
+    }),
+  agentStatus: () => request<AgentStatus>("/agent/status"),
   runExperiment: (payload: RunRequest) =>
     request<ExperimentSummary>("/experiments/run", {
       method: "POST",

@@ -36,6 +36,21 @@ in one small, self-hosted lab.
 ## Quickstart
 
 ```bash
+# One command: sample stack + backend + dashboard (Docker, Python 3.11, Node 18+)
+./run_demo.sh
+
+# Windows PowerShell
+powershell -ExecutionPolicy Bypass -File .\run_demo.ps1
+```
+
+The script creates `.env` from the template if it is missing, installs the
+backend and frontend dependencies, starts the six-service stack, waits for it
+to become healthy, then launches the API and dashboard.
+
+<details>
+<summary>Manual setup</summary>
+
+```bash
 # 1. Environment (never commit .env)
 cp .env.example .env            # Windows: Copy-Item .env.example .env
 # edit .env, then install the secret-scanning hook
@@ -59,11 +74,17 @@ cd sample-stack
 docker compose up --build
 ```
 
+</details>
+
 Open <http://localhost:5173>. API docs live at <http://localhost:8090/docs>.
 
-The dashboard streams the service map, resilience score and telemetry over
-`/ws`. Without a backend (or Docker), open
-<http://localhost:5173/?mock=1> to replay a scripted experiment.
+The dashboard streams the service map, resilience score, anomaly score and
+telemetry over `/ws`. Use **RUN** for the selected fault/target, **AGENT MODE**
+to let the planner choose the experiment, and **Compare** to see the last run
+with fixes off next to the last run with fixes on.
+
+Without a backend (or Docker), open <http://localhost:5173/?mock=1> to replay
+a scripted experiment.
 
 ChaosPilot starts in **simulation mode** (`CHAOSPILOT_SIMULATION_MODE=true`),
 so you can explore the dashboard, anomaly detection and the agent without

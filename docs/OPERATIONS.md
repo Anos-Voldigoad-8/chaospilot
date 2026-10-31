@@ -22,7 +22,16 @@ git check-ignore -v .env
 
 ## Running everything
 
-Use three terminals.
+The fastest path from a clean clone is one command, which creates `.env`,
+installs dependencies, starts the sample stack, waits for it, then launches the
+backend and dashboard:
+
+```bash
+./run_demo.sh                                  # macOS / Linux
+powershell -ExecutionPolicy Bypass -File .\run_demo.ps1   # Windows
+```
+
+The manual three-terminal sequence below is equivalent.
 
 ### Backend
 
@@ -104,9 +113,9 @@ pre-commit run --all-files
 
 `uvicorn app:app --port 8090` serves the Phase 3 API. A run is always
 **10 s baseline → 20 s fault → 10 s recovery**, stores labelled samples in
-`backend/data/chaos.db`, and broadcasts `state`, `metrics`, `score`, `log` and
-`postmortem` events on `ws://127.0.0.1:8090/ws`. Only one experiment can run at
-a time. See [`API.md`](API.md) for response shapes.
+`backend/data/chaos.db`, and broadcasts `state`, `metrics`, `anomaly`, `score`,
+`log` and `postmortem` events on `ws://127.0.0.1:8090/ws`. Only one experiment
+can run at a time. See [`API.md`](API.md) for response shapes.
 
 ```bash
 cd backend

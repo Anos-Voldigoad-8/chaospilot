@@ -5,6 +5,7 @@ import { Panel } from "./Panel";
 
 export function PostmortemPanel() {
   const postmortem = useChaosStore((state) => state.postmortem);
+  const postmortemSource = useChaosStore((state) => state.postmortemSource);
   const score = useChaosStore((state) => state.score);
   const running = useChaosStore((state) => state.running);
   const { output, typing } = useTypewriter(postmortem, 8);
@@ -39,6 +40,11 @@ export function PostmortemPanel() {
                 <span className="hud-chip border-neon-cyan/20 text-neon-cyan/60">
                   grounded on telemetry
                 </span>
+                {postmortemSource ? (
+                  <span className="hud-chip border-neon-cyan/20 text-slate-500">
+                    source {postmortemSource}
+                  </span>
+                ) : null}
                 <span
                   className="hud-chip border-neon-cyan/20"
                   style={{ color: scoreColor(score) }}

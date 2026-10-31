@@ -26,7 +26,7 @@ function Stat({
   return (
     <div className="border border-neon-cyan/10 bg-void-950/50 px-2 py-2">
       <div className="text-[8px] uppercase tracking-[0.18em] text-slate-600">{label}</div>
-      <div className="mt-1 font-mono text-[19px] font-medium leading-none" style={{ color }}>
+      <div className="mt-1 font-mono text-[17px] font-medium leading-none" style={{ color }}>
         {value}
       </div>
       <div className="mt-1 text-[8px] uppercase tracking-[0.12em] text-slate-600">{hint}</div>
@@ -37,6 +37,8 @@ function Stat({
 export function LiveMetrics() {
   const metrics = useChaosStore((state) => state.metrics);
   const score = useChaosStore((state) => state.score);
+  const breakdown = useChaosStore((state) => state.scoreBreakdown);
+  const anomaly = useChaosStore((state) => state.anomaly);
   const running = useChaosStore((state) => state.running);
   const activeExperimentId = useChaosStore((state) => state.activeExperimentId);
 
@@ -49,6 +51,8 @@ export function LiveMetrics() {
   const errorRate = latest?.errorRate ?? 0;
   const errorColor =
     errorRate > 0.02 ? COLORS.red : errorRate > 0 ? COLORS.amber : COLORS.mint;
+  const anomalyColor =
+    anomaly >= 0.7 ? COLORS.red : anomaly >= 0.4 ? COLORS.amber : COLORS.mint;
 
   const chartData = metrics.map((sample, index) => ({
     index,
@@ -76,7 +80,7 @@ export function LiveMetrics() {
     >
       <ResilienceGauge score={score} />
 
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         <Stat
           label="p95 latency"
           value={formatLatency(p95)}
@@ -88,6 +92,12 @@ export function LiveMetrics() {
           value={formatPercent(errorRate)}
           hint="latest tick"
           color={errorColor}
+        />
+        <Stat
+          label="anomaly"
+          value={formatPercent(anomaly)}
+          hint="model score"
+          color={anomalyColor}
         />
       </div>
 
@@ -142,8 +152,11 @@ export function LiveMetrics() {
         </div>
       </div>
 
-      <div className="flex items-center justify-between border-t border-neon-cyan/10 pt-2 text-[8px] uppercase tracking-[0.14em] text-slate-600">
-        <span>gateway /checkout</span>
+      <div className="flex flex-wrap items-center justify-between gap-1 border-t border-neon-cyan/10 pt-2 text-[8px] uppercase tracking-[0.14em] text-slate-600">
+        <span>
+          failed {breakdown.failed.length} · degraded {breakdown.degraded.length} ·{" "}
+          {breakdown.contained ? "contained" : "spreading"}
+        </span>
         <span style={{ color: scoreColor(score) }}>
           resilience {Math.round(score)}
         </span>

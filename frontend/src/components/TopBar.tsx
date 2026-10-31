@@ -47,6 +47,7 @@ function ConnectionBadge() {
 function FixesToggle() {
   const applyFixes = useChaosStore((state) => state.applyFixes);
   const setApplyFixes = useChaosStore((state) => state.setApplyFixes);
+  const running = useChaosStore((state) => state.running);
 
   return (
     <button
@@ -54,12 +55,13 @@ function FixesToggle() {
       role="switch"
       aria-checked={applyFixes}
       aria-label="Apply fixes before the experiment"
+      disabled={running}
       onClick={() => setApplyFixes(!applyFixes)}
       className={`group flex items-center gap-2 border px-2 py-1.5 transition ${
         applyFixes
           ? "border-neon-cyan/50 bg-neon-cyan/10 shadow-cyan"
           : "border-neon-cyan/15 bg-void-900/70 hover:border-neon-cyan/30"
-      }`}
+      } ${running ? "cursor-not-allowed opacity-60" : ""}`}
       title="Restart the stack with RESILIENT=true before the baseline"
     >
       <Power
@@ -115,6 +117,7 @@ function Clock() {
 
 export function TopBar() {
   const mockMode = useChaosStore((state) => state.mockMode);
+  const backendDown = useChaosStore((state) => state.backendDown);
 
   return (
     <header className="sticky top-0 z-40 border-b border-neon-cyan/15 bg-void-950/85 backdrop-blur-md">
@@ -172,6 +175,13 @@ export function TopBar() {
           <Clock />
         </div>
       </div>
+
+      {backendDown && !mockMode ? (
+        <div className="border-t border-neon-red/30 bg-neon-red/[0.07] px-3 py-1.5 text-center text-[9px] uppercase tracking-[0.16em] text-neon-red/90">
+          backend unreachable // start it with run_demo.ps1 or run_demo.sh // retrying
+          automatically
+        </div>
+      ) : null}
     </header>
   );
 }

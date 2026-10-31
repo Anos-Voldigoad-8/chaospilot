@@ -137,3 +137,23 @@ curl http://localhost:8000/api/overview
 - [ ] One command (or documented sequence) reproduces the demo.
 - [ ] Every earlier phase's checks still pass.
 - [ ] `pre-commit run --all-files` is clean.
+
+## Phase 7 — End-to-end integration and polish
+
+**Deliverables**
+
+- Dashboard RUN posts `/experiments/run`; AGENT MODE posts `/agent/plan`.
+- `/ws` streams `state`, `log`, `metrics`, `anomaly`, `score` and `postmortem`.
+- Resilience score: `100 - 15/failed - 6/degraded + 10` when fixes are on and
+  the blast radius stayed contained, with the breakdown included in the event.
+- Compare panel with the last fixes-off and fixes-on scores.
+- Loading, empty and backend-unreachable states across the UI.
+- One-command start scripts: `run_demo.sh` and `run_demo.ps1`.
+
+**Exit criteria**
+
+- [ ] Backend tests, Ruff and pre-commit pass.
+- [ ] `npm run build` passes.
+- [x] The scripted `?mock=1` feed emits the same event shapes.
+- [ ] `./run_demo.sh` or `.\run_demo.ps1` starts a clean clone end to end.
+- [ ] `git status` never lists `.env`.

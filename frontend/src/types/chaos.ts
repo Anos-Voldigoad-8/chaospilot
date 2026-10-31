@@ -41,17 +41,79 @@ export interface MetricsEvent {
   error_rate: number;
 }
 
+export interface AnomalyEvent {
+  type: "anomaly";
+  value: number;
+  services: Record<string, number>;
+}
+
 export interface ScoreEvent {
   type: "score";
   value: number;
+  failed?: string[];
+  degraded?: string[];
+  contained?: boolean;
+  bonus?: number;
+}
+
+export interface PostmortemStructured {
+  root_cause: string;
+  blast_radius: string;
+  fixes: string[];
+  word_count?: number;
 }
 
 export interface PostmortemEvent {
   type: "postmortem";
   text: string;
+  source?: "llm" | "template";
+  structured?: PostmortemStructured;
 }
 
-export type WsEvent = StateEvent | LogEvent | MetricsEvent | ScoreEvent | PostmortemEvent;
+export type WsEvent =
+  | StateEvent
+  | LogEvent
+  | MetricsEvent
+  | AnomalyEvent
+  | ScoreEvent
+  | PostmortemEvent;
+
+export interface AgentPlan {
+  fault: FaultKind;
+  target: string;
+  hypothesis: string;
+  value?: number | null;
+  source: "llm" | "rule";
+}
+
+export interface AgentStatus {
+  provider: string;
+  model: string | null;
+  mode: "llm" | "fallback";
+}
+
+export interface ScoreBreakdown {
+  value: number;
+  failed: string[];
+  degraded: string[];
+  contained: boolean;
+  bonus: number;
+}
+
+export interface RunOutcome {
+  id: number | null;
+  fault: FaultKind;
+  target: string;
+  fixes: boolean;
+  score: number;
+  at: number;
+}
+
+export interface RunOverrides {
+  fault?: FaultKind;
+  target?: string;
+  fixes?: boolean;
+}
 
 export interface ServiceRuntime {
   status: ServiceStatus;

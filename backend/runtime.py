@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from statistics import median
 from typing import Any
 
@@ -12,10 +12,12 @@ from service_map import GATEWAY_SERVICE
 STATUS_OK = "ok"
 STATUS_WARN = "warn"
 STATUS_BAD = "bad"
+STATUS_RANK = {STATUS_OK: 0, STATUS_WARN: 1, STATUS_BAD: 2}
 
 WARN_LATENCY_FACTOR = 3.0
-MAX_LATENCY_PENALTY = 60.0
-MAX_ERROR_PENALTY = 40.0
+FAILED_PENALTY = 15.0
+DEGRADED_PENALTY = 6.0
+CONTAINMENT_BONUS = 10.0
 
 
 def derive_status(
@@ -31,6 +33,13 @@ def derive_status(
     if baseline_ms and latency_ms is not None and latency_ms > WARN_LATENCY_FACTOR * baseline_ms:
         return STATUS_WARN
     return STATUS_OK
+
+
+def worst_status(current: str | None, status: str) -> str:
+    """Keep the more severe of two statuses so live scoring never improves."""
+    if current is None:
+        return status
+    return status if STATUS_RANK[status] > STATUS_RANK[current] else current
 
 
 def status_for_sample(sample: Sample, baseline_ms: float | None) -> str:
@@ -78,21 +87,57 @@ def recent_metrics(samples: Sequence[Sample]) -> dict[str, float]:
     }
 
 
-def resilience_score(
+def statuses_from_rows(
+    rows: Iterable[Mapping[str, Any]], baseline: Mapping[str, float]
+) -> dict[str, str]:
+    """Worst status per service across the supplied samples."""
+    worst: dict[str, str] = {}
+    for row in rows:
+        service = str(row["service"])
+        status = derive_status(
+            up=bool(row.get("up")),
+            error=bool(row.get("error")),
+            latency_ms=row.get("latency_ms"),
+            baseline_ms=baseline.get(service),
+        )
+        worst[service] = worst_status(worst.get(service), status)
+    return worst
+
+
+def resilience_breakdown(
+    statuses: Mapping[str, str],
     *,
-    gateway_latency: float,
-    baseline_gateway: float | None,
-    error_rate: float,
-) -> float:
-    """0-100 score: latency inflation and failed requests both subtract."""
-    baseline = baseline_gateway or 0.0
-    if baseline > 0:
-        ratio = max(1.0, gateway_latency / baseline)
-        latency_penalty = min(MAX_LATENCY_PENALTY, (ratio - 1.0) * 30.0)
-    else:
-        latency_penalty = 0.0
-    error_penalty = min(MAX_ERROR_PENALTY, error_rate * 100.0)
-    return round(max(0.0, 100.0 - latency_penalty - error_penalty), 1)
+    fixes: bool,
+    blast_radius: Iterable[str],
+) -> dict[str, Any]:
+    """Resilience score from service statuses and blast-radius containment.
+
+    Formula: ``100 - 15 per failed - 6 per degraded``, plus a 10 point bonus
+    when resilience fixes were enabled and no service outside the fault's
+    blast radius failed or degraded.
+    """
+    failed = sorted(
+        service for service, status in statuses.items() if status == STATUS_BAD
+    )
+    degraded = sorted(
+        service for service, status in statuses.items() if status == STATUS_WARN
+    )
+    affected = set(blast_radius)
+    contained = all(
+        status == STATUS_OK
+        for service, status in statuses.items()
+        if service not in affected
+    )
+    bonus = CONTAINMENT_BONUS if fixes and contained else 0.0
+    raw = 100.0 - FAILED_PENALTY * len(failed) - DEGRADED_PENALTY * len(degraded)
+    raw += bonus
+    return {
+        "value": round(max(0.0, min(100.0, raw)), 1),
+        "failed": failed,
+        "degraded": degraded,
+        "contained": contained,
+        "bonus": bonus,
+    }
 
 
 def build_postmortem(

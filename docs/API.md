@@ -133,9 +133,26 @@ Status derivation per service:
 
 | Status | Rule |
 | --- | --- |
-| `bad` | service is down or the request errored |
-| `warn` | latency is more than 3x the baseline median |
+| `bad` | service is down or the request errored (failed) |
+| `warn` | latency is more than 3x the baseline median (degraded) |
 | `ok` | everything else |
+
+### Resilience score
+
+The score uses the worst status each service reached during the fault window:
+
+```text
+score = 100
+      - 15 * failed services
+      -  6 * degraded services
+      + 10 if fixes were enabled and the blast radius stayed contained
+```
+
+Containment means no service *outside* the target's blast radius (the target
+plus every transitive caller) failed or degraded. The result is clamped to
+`0..100`. `AGENT MODE` uses `POST /agent/plan` and then starts the chosen
+experiment; `Compare` keeps the last run with fixes off next to the last run
+with fixes on.
 
 ## WebSocket
 
@@ -147,7 +164,15 @@ JSON frames:
 {"type": "log", "level": "warn", "text": "Fault active: latency on payments"}
 {"type": "log", "level": "info", "text": "agent: tool read_metrics(all services) during baseline"}
 {"type": "metrics", "gateway_latency": 2073.3, "error_rate": 0.0}
-{"type": "score", "value": 40.0}
+{"type": "anomaly", "value": 0.93, "services": {"payments": 0.93, "gateway": 0.71, "db": 0.08}}
+{
+  "type": "score",
+  "value": 64.0,
+  "failed": ["payments"],
+  "degraded": ["gateway", "orders", "db"],
+  "contained": false,
+  "bonus": 0.0
+}
 {
   "type": "postmortem",
   "text": "Root cause: ... Blast radius: ... Fixes: 1) ... 2) ... 3) ...",
@@ -162,8 +187,10 @@ JSON frames:
 ```
 
 A `state` event is sent for every service on every collector tick (1 s), then
-one `metrics` and one `score` event. The runner also streams the agent's steps
-as `log` frames (`agent: ...`). The stream ends each run with `score` and
+one `metrics`, one `anomaly` and one `score` event. The anomaly score comes
+from the Phase 5 Isolation Forest when a model is available, with a
+baseline-ratio fallback otherwise. The runner also streams the agent's steps as
+`log` frames (`agent: ...`). The stream ends each run with `score` and
 `postmortem`; `source` is `llm` or `template`, and `structured` carries the
 same three-section report. A small client is included:
 

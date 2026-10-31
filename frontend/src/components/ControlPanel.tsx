@@ -1,4 +1,4 @@
-import { ChevronRight, Play, Radar } from "lucide-react";
+import { Bot, ChevronRight, Play, Radar } from "lucide-react";
 import { useChaosStore } from "../store/useChaosStore";
 import { formatRelative } from "../lib/stats";
 import { scoreColor } from "../lib/theme";
@@ -58,7 +58,12 @@ export function ControlPanel() {
   const topology = useChaosStore((state) => state.topology);
   const experiments = useChaosStore((state) => state.experiments);
   const running = useChaosStore((state) => state.running);
+  const planning = useChaosStore((state) => state.planning);
+  const agentPlan = useChaosStore((state) => state.agentPlan);
+  const lastError = useChaosStore((state) => state.lastError);
   const runExperiment = useChaosStore((state) => state.runExperiment);
+  const runAgentExperiment = useChaosStore((state) => state.runAgentExperiment);
+  const busy = running || planning;
 
   const hint = FAULTS.find((item) => item.id === fault)?.hint ?? "";
 
@@ -81,7 +86,7 @@ export function ControlPanel() {
           id="fault-select"
           className="hud-select"
           value={fault}
-          disabled={running}
+          disabled={busy}
           onChange={(event) => setFault(event.target.value as FaultKind)}
         >
           {FAULTS.map((item) => (
@@ -101,7 +106,7 @@ export function ControlPanel() {
           id="target-select"
           className="hud-select"
           value={target}
-          disabled={running}
+          disabled={busy}
           onChange={(event) => setTarget(event.target.value)}
         >
           {topology.nodes.map((node) => (
@@ -118,11 +123,13 @@ export function ControlPanel() {
       <button
         type="button"
         onClick={() => void runExperiment()}
-        disabled={running}
+        disabled={busy}
         className={`group relative w-full overflow-hidden border px-3 py-3 text-center transition ${
           running
             ? "cursor-wait border-neon-amber/50 bg-neon-amber/10 text-neon-amber"
-            : "border-neon-cyan/50 bg-neon-cyan/[0.07] text-neon-cyan hover:bg-neon-cyan/[0.14] hover:shadow-cyan"
+            : busy
+              ? "cursor-wait border-slate-700 bg-void-900/60 text-slate-500"
+              : "border-neon-cyan/50 bg-neon-cyan/[0.07] text-neon-cyan hover:bg-neon-cyan/[0.14] hover:shadow-cyan"
         }`}
       >
         <span className="hud-corner hud-corner-tl !border-neon-cyan/80" aria-hidden />
@@ -142,6 +149,53 @@ export function ControlPanel() {
           {running ? "experiment in progress" : "experiment"}
         </span>
       </button>
+
+      <button
+        type="button"
+        onClick={() => void runAgentExperiment()}
+        disabled={busy}
+        className={`flex w-full items-center justify-center gap-2 border px-3 py-2 text-center transition ${
+          planning
+            ? "cursor-wait border-neon-mint/50 bg-neon-mint/10 text-neon-mint"
+            : busy
+              ? "cursor-wait border-slate-700 bg-void-900/60 text-slate-500"
+              : "border-neon-mint/40 bg-neon-mint/[0.05] text-neon-mint hover:bg-neon-mint/[0.12]"
+        }`}
+        title="Let the agent pick the next experiment"
+      >
+        {planning ? (
+          <Radar className="h-3.5 w-3.5 animate-spin" aria-hidden />
+        ) : (
+          <Bot className="h-3.5 w-3.5" aria-hidden />
+        )}
+        <span className="font-display text-[11px] font-semibold uppercase tracking-[0.2em]">
+          {planning ? "planning" : "agent mode"}
+        </span>
+        <span className="text-[8px] uppercase tracking-[0.16em] opacity-60">
+          {planning ? "asking the planner" : "auto-run"}
+        </span>
+      </button>
+
+      {agentPlan ? (
+        <div className="border border-neon-mint/20 bg-neon-mint/[0.04] px-2 py-2">
+          <div className="flex items-center justify-between gap-2 text-[8px] uppercase tracking-[0.16em]">
+            <span className="text-neon-mint/80">agent plan</span>
+            <span className="text-slate-600">{agentPlan.source}</span>
+          </div>
+          <div className="mt-1 font-mono text-[11px] text-slate-300">
+            {agentPlan.fault} <span className="text-neon-cyan/40">→</span> {agentPlan.target}
+          </div>
+          <p className="mt-1 text-[9.5px] leading-[1.5] text-slate-500">
+            {agentPlan.hypothesis}
+          </p>
+        </div>
+      ) : null}
+
+      {lastError ? (
+        <p className="border border-neon-red/25 bg-neon-red/[0.05] px-2 py-1.5 text-[9px] uppercase tracking-[0.1em] text-neon-red/80">
+          {lastError}
+        </p>
+      ) : null}
 
       <div className="grid grid-cols-3 gap-1 border-y border-neon-cyan/10 py-2 text-center">
         {[

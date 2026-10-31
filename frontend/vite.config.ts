@@ -9,6 +9,7 @@ const proxy = {
   "/health": backend,
   "/topology": backend,
   "/experiments": backend,
+  "/agent": backend,
   "/ws": {
     target: backend,
     ws: true,

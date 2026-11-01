@@ -157,3 +157,20 @@ curl http://localhost:8000/api/overview
 - [x] The scripted `?mock=1` feed emits the same event shapes.
 - [ ] `./run_demo.sh` or `.\run_demo.ps1` starts a clean clone end to end.
 - [ ] `git status` never lists `.env`.
+
+## Phase 8 — Documentation pack
+
+**Deliverables**
+
+- `README.md`: summary, demo placeholder, Mermaid architecture, tech stack,
+  three-command run, experiment flow, model metrics, limitations and future work.
+- `docs/ARCHITECTURE.md`: Mermaid component, data-flow and sequence diagrams.
+- `docs/REPORT_NOTES.md`: module-by-module summaries with file paths.
+- `docs/screenshots/`: capture instructions for the dashboard GIF.
+
+**Exit criteria**
+
+- [x] Every number in the docs is read from the repository.
+- [x] `pre-commit run --all-files` passes.
+- [x] `git status` does not list `.env`.
+- [x] `v1.0` tag pushed.

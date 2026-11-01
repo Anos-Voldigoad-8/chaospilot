@@ -1,185 +1,254 @@
 # Architecture
 
-ChaosPilot is organised as four cooperating subsystems around a shared SQLite
-database. The backend owns all privileged work (Docker, ML, LLM); the frontend
-is a read-mostly dashboard with explicit control actions.
+ChaosPilot is four cooperating subsystems around one SQLite database. All
+privileged work (Docker, ML, LLM) happens in the backend; the browser is a
+read-mostly dashboard with explicit run and plan actions.
 
-## 1. Component overview
+## 1. Components
 
-```text
-┌──────────────────────────── frontend (React/Vite) ───────────────────────────┐
-│  Topology (React Flow)   Metrics (Recharts)   Incidents + Agent report        │
-└───────────────────────────────────┬───────────────────────────────────────────┘
-                                    │ REST (JSON) + polling
-┌───────────────────────────────────▼───────────────────────────────────────────┐
-│                              backend (FastAPI)                                │
-│                                                                               │
-│  ┌──────────────┐   ┌──────────────┐   ┌──────────────┐   ┌────────────────┐  │
-│  │  Collector   │──▶│   SQLite     │◀──│  Chaos       │   │  Incident      │  │
-│  │  (async loop)│   │  metrics     │   │  manager     │   │  agent (LLM)   │  │
-│  └──────┬───────┘   │  anomalies   │   └──────┬───────┘   └───────┬────────┘  │
-│         │           │  faults      │          │                   │           │
-│         │           │  incidents   │          │                   │           │
-│         │           └──────┬───────┘          │                   │           │
-│         │                  │                  │                   │           │
-│  ┌──────▼───────┐   ┌──────▼───────┐   ┌──────▼───────┐   ┌───────▼────────┐  │
-│  │  Telemetry   │   │  Anomaly     │   │ Docker SDK   │   │ Ollama /       │  │
-│  │  sources     │   │  detector    │   │ (faults)     │   │ OpenAI API     │  │
-│  └──────┬───────┘   └──────────────┘   └──────┬───────┘   └───────┬────────┘  │
-└─────────┼──────────────────────────────────────┼───────────────────┼──────────┘
-          │ /metrics, /health                    │ stop/exec/network │ HTTP
-┌─────────▼──────────────────┐          ┌────────▼───────────────────▼──────────┐
-│ sample-stack (6 services)  │          │ Docker daemon                         │
-│ gateway auth orders        │◀─────────│ compose project "chaospilot"          │
-│ cache payments db          │  faults  └───────────────────────────────────────┘
-└────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph Browser["Browser"]
+        Dashboard["React dashboard<br/>React Flow · Recharts · Zustand"]
+    end
+
+    subgraph Backend["ChaosPilot API — FastAPI (:8090)"]
+        App["app.py<br/>REST + WebSocket"]
+        Runner["experiments.py<br/>ExperimentRunner"]
+        Collector["collector.py<br/>1 s probe loop"]
+        Runtime["runtime.py<br/>status + score + postmortem"]
+        DB[("db.py<br/>SQLite")]
+        Hub["ws.py<br/>EventHub"]
+        Chaos["chaos/engine.py<br/>HTTP + Docker faults"]
+        Detector["ml/detector.py<br/>Isolation Forest"]
+        Agent["agent/service.py<br/>planner + postmortem"]
+        Topo["topology.py · service_map.py"]
+        StackCtl["stack.py<br/>compose restarts"]
+    end
+
+    subgraph SampleStack["Sample stack — Docker Compose"]
+        Gateway["gateway :8000"]
+        Auth["auth :8001"]
+        Orders["orders :8002"]
+        Cache["cache :8003"]
+        Payments["payments :8004"]
+        Db["db :8005"]
+        Gateway --> Auth
+        Gateway --> Orders
+        Auth --> Cache
+        Orders --> Payments
+        Orders --> Db
+        Payments --> Db
+    end
+
+    subgraph External["External services"]
+        LLM["Ollama / OpenAI-compatible"]
+        Docker["Docker daemon<br/>compose project chaospilot"]
+    end
+
+    Dashboard -->|REST| App
+    Hub -->|WebSocket| Dashboard
+    App --> Runner
+    App --> Agent
+    App --> Topo
+    Runner --> Collector
+    Runner --> Chaos
+    Runner --> StackCtl
+    Runner --> Runtime
+    Runner --> Detector
+    Runner --> DB
+    Runner --> Hub
+    Runner --> Agent
+    Collector --> DB
+    Collector -->|/health + /checkout| SampleStack
+    Agent --> DB
+    Agent --> Detector
+    Agent --> LLM
+    Agent --> Hub
+    Chaos -->|HTTP /_chaos| SampleStack
+    Chaos -->|SDK| Docker
+    StackCtl -->|docker compose up| Docker
+    Docker --> Gateway
 ```
 
-## 2. Backend modules
+## 2. Data flow
 
-The served API is the Phase 3 app at `backend/app.py`:
+The live experiment path is a single loop: the collector writes samples, the
+runner turns them into events, the agent turns the stored evidence into a
+report.
+
+```mermaid
+flowchart LR
+    Request["POST /experiments/run<br/>or POST /agent/plan"] --> Runner
+    Runner -->|"fixes=true"| Restart["Recreate stack with<br/>RESILIENT=true"]
+    Restart --> Baseline
+    Runner --> Baseline["Baseline 10 s"]
+    Baseline -->|"median latency per service"| Fault
+    Baseline -->|"sampled every 1 s"| Samples[("samples")]
+    Fault["Fault 20 s<br/>kill · latency · memory"] -->|"worst status per service"| LiveScore["Live score"]
+    Fault -->|"5 s windows"| Windows["Feature windows"]
+    Windows --> Detector["Anomaly detector"]
+    Detector -->|"anomaly 0-1"| LiveScore
+    LiveScore -->|"score event"| Hub["WebSocket hub"]
+    Fault --> Recovery["Recovery 10 s"]
+    Recovery --> Report["Final score from<br/>fault-window statuses"]
+    Report --> Context["Agent context:<br/>topology · timeline · anomalies · phases"]
+    Context --> LLM["LLM (optional)"]
+    Context --> Template["Deterministic template"]
+    LLM --> Postmortem["postmortem event"]
+    Template --> Postmortem
+    Postmortem --> Hub
+    Report --> Store[("experiment_runs")]
+    Hub --> Dashboard["Dashboard"]
+```
+
+## 3. Experiment sequence
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant D as Dashboard
+    participant A as FastAPI
+    participant R as ExperimentRunner
+    participant S as StackController
+    participant C as Collector
+    participant X as Chaos engine
+    participant P as Sample stack
+    participant DB as SQLite
+    participant H as EventHub
+    participant G as Agent
+
+    D->>A: POST /experiments/run {fault,target,fixes}
+    A->>R: start(...)
+    R-->>H: log "experiment started"
+
+    opt fixes = true
+        R->>S: restart(resilient=true)
+        S->>P: docker compose up -d --force-recreate
+        S-->>R: healthy
+    end
+
+    R->>C: start(label_resolver, on_samples)
+    loop every 1 s for 10 s baseline
+        C->>P: GET /health, POST /checkout
+        C->>DB: insert samples
+        C->>R: on_samples(...)
+        R->>H: state, metrics, anomaly, score
+    end
+    R->>DB: baseline median per service
+
+    R->>X: inject fault
+    X->>P: /_chaos/latency, /_chaos/memory or Docker kill
+    loop every 1 s for 20 s fault
+        C->>P: probes
+        C->>DB: insert labelled samples
+        C->>R: on_samples(...)
+        R->>H: state, metrics, anomaly, score
+    end
+
+    R->>X: reset_all / restore
+    loop every 1 s for 10 s recovery
+        C->>P: probes
+        C->>R: on_samples(...)
+        R->>H: state, metrics, anomaly, score
+    end
+
+    R->>DB: samples_between(fault_started, fault_ended)
+    R->>R: worst status per service -> resilience breakdown
+    R->>G: finish(run)
+    G->>DB: topology + timeline + anomalies + phases
+    opt LLM configured and reachable
+        G->>G: planner/postmortem prompt -> JSON
+    end
+    G-->>R: Postmortem (source: llm or template)
+    R->>DB: update experiment_runs(score, postmortem)
+    R->>H: score + postmortem
+    H-->>D: WebSocket frames
+```
+
+## 4. Backend modules
 
 | Module | Responsibility |
 | --- | --- |
-| `app.py` | FastAPI app: topology, experiments, WebSocket, CORS |
-| `api_config.py` | Env-driven Phase 3 settings |
-| `topology.py` | Static sample-stack nodes and edges |
-| `stack.py` | Docker Compose restarts with `RESILIENT=true|false` |
-| `experiments.py` | Background run lifecycle and event broadcasting |
-| `collector.py` | 1 s probing of `/health` plus gateway `/checkout` |
-| `db.py` | SQLite experiments, samples and run metadata |
-| `runtime.py` | Status derivation, resilience score, postmortem text |
-| `ws.py` | WebSocket fan-out to dashboard clients |
-| `chaos/engine.py` | Docker `kill`/`restore` and HTTP `/_chaos/*` faults |
+| `backend/app.py` | FastAPI app: `/health`, `/topology`, `/experiments`, `/agent`, `/ws`, CORS, lifespan |
+| `backend/api_config.py` | Env-driven settings: DB path, phase lengths, latency, memory, CORS |
+| `backend/topology.py` | Static six-service graph and dependency edges |
+| `backend/service_map.py` | Canonical service names and host ports 8000-8005 |
+| `backend/stack.py` | Compose restarts with `RESILIENT=true|false`, health waits |
+| `backend/experiments.py` | Background run lifecycle, live events, final score |
+| `backend/collector.py` | 1 s probing of every service plus a gateway checkout |
+| `backend/db.py` | SQLite schema and queries for experiments, samples and runs |
+| `backend/runtime.py` | Status derivation, resilience formula, phase stats, postmortem text |
+| `backend/ws.py` | WebSocket fan-out with stale-client cleanup |
+| `backend/chaos/engine.py` | HTTP `/_chaos` faults plus Docker `kill`/`restore` |
+| `backend/ml/*` | Feature windows, dataset generation, training, evaluation, detector |
+| `backend/agent/*` | Tools, planner, postmortem writer, LLM plumbing, context builder |
 
-### Legacy core scaffold
+The earlier `backend/core/` scaffold is still imported for typed settings
+(`core/config.py`) and the shared LLM client (`core/agent/llm.py`). Its API
+routers are **not** mounted by `backend/app.py`; the served API is the Phase 7
+app.
 
-The earlier scaffold remains under `backend/core/` and is not the served
-entrypoint. It contains the IsolationForest detector and LLM agent work:
-
-| Module | Responsibility |
-| --- | --- |
-| `core/config.py` | Typed environment settings; only place that reads `.env` |
-| `core/database.py` | SQLite connection factory, schema, WAL mode |
-| `core/services/registry.py` | Canonical service catalogue and dependencies |
-| `core/services/store.py` | Queries for services, metrics, faults, incidents |
-| `core/collector/simulator.py` | Synthetic telemetry when Docker is absent |
-| `core/collector/collector.py` | Async polling loop; persists samples; triggers detection |
-| `core/ml/features.py` | Feature extraction from metric rows |
-| `core/ml/detector.py` | StandardScaler + IsolationForest, persisted with pickle |
-| `core/ml/service.py` | Train, score, de-duplicate and persist anomalies |
-| `core/chaos/models.py` | Fault types, parameters, validation |
-| `core/chaos/engine.py` | Docker SDK fault application/recovery |
-| `core/chaos/manager.py` | Fault lifecycle: inject → active → recover/expire |
-| `core/agent/llm.py` | Ollama and OpenAI-compatible clients (backend only) |
-| `core/agent/prompts.py` | Grounded prompt templates |
-| `core/agent/agent.py` | Context assembly, LLM call, fallback analysis, incidents |
-| `core/api/*` | Versionless JSON API routers + Pydantic schemas |
-
-### Data flow (legacy core pipeline)
-
-1. Collector asks each service for `/metrics` (or the simulator invents a
-   sample, including any active fault effect).
-2. Sample is written to `metrics`.
-3. Detector scores the newest sample per service. Anomalies above the
-   severity floor are stored in `anomalies` with a per-service cooldown.
-4. Frontend polls `/api/overview` and renders topology + charts.
-5. Operator (or the demo script) injects a fault via `/api/faults`.
-6. Operator asks `/api/agent/diagnose`; the agent reads metrics, anomalies and
-   fault history from SQLite, calls the LLM, and stores an `incident`.
-
-## 3. Data model
+## 5. Data model
 
 ```sql
-services(id, name, port, url, dependencies, created_at)
-metrics(id, service_id, ts, latency_ms, error_rate, cpu_percent,
-        memory_mb, request_rate)
-anomalies(id, service_id, metric, value, score, severity, detected_at,
-          details)
-faults(id, service_id, fault_type, parameters, status, started_at,
-       ends_at, recovered_at)
-incidents(id, service_id, anomaly_id, summary, root_cause, evidence,
-          recommendations, confidence, provider, created_at)
+experiments(id, fault, target, started, ended, fixes_on)
+
+samples(id, experiment_id, ts, service, up, latency_ms, error, label)
+-- label = 1 inside the fault window, 0 otherwise
+
+experiment_runs(
+    experiment_id, status, resilient,
+    baseline_end, fault_started, fault_ended, recovery_end,
+    score, postmortem, error
+)
 ```
 
-`metrics` is append-only. Collector retention deletes rows older than
-`CHAOSPILOT_HISTORY_MINUTES`. All timestamps are Unix seconds (UTC).
+`samples` is append-only. Timestamps are Unix seconds (UTC). SQLite runs in WAL
+mode; one experiment writes at a time, so writes stay small and serialised.
 
-## 4. Chaos model
+## 6. Event contract
 
-Supported faults:
+| Event | Payload |
+| --- | --- |
+| `state` | `service`, `status` (`ok`/`warn`/`bad`), `latency_ms` |
+| `log` | `level`, `text` (experiment, agent steps, errors) |
+| `metrics` | `gateway_latency`, `error_rate` |
+| `anomaly` | `value` (0-1), `services` map |
+| `score` | `value`, `failed[]`, `degraded[]`, `contained`, `bonus` |
+| `postmortem` | `text`, `source` (`llm`/`template`), `structured` |
 
-| Fault | Docker action | Simulation effect |
-| --- | --- | --- |
-| `latency` | `POST /admin/fault` on the target | latency += parameter |
-| `error` | same, raises error rate | error_rate ↑, requests ↓ |
-| `crash` | `container.stop()` | 100% errors, zero traffic |
-| `cpu` | detached busy-loop `exec` | cpu_percent ↑, latency ↑ |
-| `memory` | `container.update(mem_limit=...)` | memory ↑, latency ↑ |
-| `network` | disconnect/reconnect container | error_rate ↑, latency ↑ |
+A `state` event is sent for each service every tick, followed by one `metrics`,
+one `anomaly` and one `score`. The run ends with `score` and `postmortem`.
 
-Recovery is explicit (`POST /api/faults/{id}/recover`) or automatic when
-`ends_at` passes. The manager restores the previous container state.
+## 7. Scoring and status rules
 
-## 5. Anomaly detection
+| Status | Rule |
+| --- | --- |
+| `bad` | service is down or the request errored |
+| `warn` | latency is more than 3x the baseline median |
+| `ok` | everything else |
 
-Features: `latency_ms`, `error_rate`, `cpu_percent`, `memory_mb`,
-`request_rate`.
+```text
+score = 100 - 15 * failed - 6 * degraded + (10 if fixes and contained else 0)
+```
 
-- **Training**: last 500 samples per service, standardised, IsolationForest
-  with `contamination=0.04`, `n_estimators=150`, random seed 42.
-- **Scoring**: `-decision_function` (higher = more anomalous). Severity bands
-  come from score quantiles (`low` / `medium` / `high` / `critical`).
-- **Cold start / fallback**: fewer than 30 samples or scikit-learn missing →
-  robust z-score against the rolling median/MAD.
-- **Persistence**: `backend/models/anomaly_detector.pkl` (git-ignored).
-  Retraining is available via `POST /api/anomalies/train`.
-
-The model is intentionally simple: the project's value is the closed loop, not
-a state-of-the-art detector.
-
-## 6. LLM agent
-
-- Default provider is **Ollama** (`http://localhost:11434`), so no key is
-  required. Hosted OpenAI-compatible APIs are supported by setting
-  `LLM_PROVIDER=openai` and `OPENAI_API_KEY` in `.env`.
-- The key is read only in `core/config.py` and used only in
-  `core/agent/llm.py`. It is never returned by an endpoint, logged, or sent to
-  the frontend.
-- The prompt contains: service metadata, dependency edges, the anomaly, the
-  last N metric samples, recent faults, and recent incidents. The model must
-  answer as strict JSON: `summary`, `root_cause`, `evidence[]`,
-  `recommendations[]`, `confidence`.
-- If the LLM is unreachable or returns invalid JSON, a deterministic
-  rule-based analyser produces a diagnosis so the demo always works. The
-  response's `provider` field says which path was used (`ollama`, `openai`,
-  or `fallback`).
-
-## 7. Frontend
-
-- Single-page HUD dashboard: React Flow service map with status colours and
-  failure propagation along call edges, an animated resilience gauge, a
-  Recharts p95/error stream, a colour-coded agent console and a typed-out
-  postmortem.
-- Reads the Phase 3 API (`/topology`, `/experiments`) and subscribes to `/ws`
-  for `state`, `metrics`, `score`, `log` and `postmortem` events. The
-  WebSocket reconnects with exponential backoff.
-- Zustand holds all client state; the bundled topology is used for first paint
-  and as a fallback when the API is down.
-- `src/lib/api.ts` is the only file that knows URLs. It reads the public,
-  non-secret `VITE_API_BASE_URL` and `VITE_WS_URL`; empty values use the Vite
-  proxy on `127.0.0.1:8090`.
-- `?mock=1` replays a scripted experiment with the same event shapes, so the
-  UI is fully explorable without a backend.
-- No key, token or password ever reaches the bundle. Anything secret is
-  requested from the backend.
+Containment means every service outside `affected_services(target)` — the
+target plus its transitive callers — stayed `ok`. The value is clamped to
+0-100. The final score uses the worst status each service reached during the
+fault window; the live score is frozen the same way so recovery cannot raise it.
 
 ## 8. Failure modes and design choices
 
-- **Docker unavailable** → simulation mode keeps the whole product usable.
-- **LLM unavailable** → deterministic fallback keeps diagnoses available.
-- **Not enough telemetry** → statistical detector instead of a broken model.
-- **SQLite concurrency** → WAL plus per-request connections; writes are tiny
-  and serialised by the single collector loop.
-- **Public repository** → secret scanning, env-only configuration and a
-  backend-only LLM boundary are architectural requirements, not extras.
+- **Docker unavailable**: latency and memory faults still work over HTTP; `kill`
+  reports a clear engine error.
+- **Model artifact missing**: the runner falls back to a baseline-ratio anomaly
+  score; the API keeps streaming.
+- **LLM unavailable**: the planner falls back to a rule (`latency` on the
+  service with the most callers) and the postmortem falls back to a template.
+- **Not enough telemetry**: status derivation and the heuristic anomaly score
+  handle empty windows without raising.
+- **Public repository**: env-only configuration, gitleaks plus a local guard,
+  and a backend-only LLM boundary are architectural requirements.
+- **Frontend offline**: the dashboard keeps the bundled topology, shows a
+  backend-unreachable banner and reconnects with exponential backoff.

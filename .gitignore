@@ -49,7 +49,10 @@ pnpm-debug.log*
 # ---------------------------------------------------------------------------
 models/
 backend/models/
-backend/data/
+# backend/data/seed/ is committed (offline seed data); runtime *.db files and
+# the agent response cache are ignored by the rules above / below.
+backend/data/cache/
+backend/data/*.db
 sample-stack/data/
 
 # ---------------------------------------------------------------------------

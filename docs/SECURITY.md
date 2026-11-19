@@ -4,18 +4,17 @@
 
 ## Golden rules
 
-1. **No secrets in git.** Not in code, tests, docs, compose files, issues or
-   screenshots.
+1. **No secrets in git.** Not in code, tests, docs, issues or screenshots.
 2. **Backend reads secrets from the environment** via `python-dotenv` and
-   `pydantic-settings` (`backend/core/config.py`) and the Phase 3 API settings
-   in `backend/api_config.py`. No hardcoded fallbacks.
+   `pydantic-settings` (`backend/core/config.py`) and the API settings in
+   `backend/api_config.py`. No hardcoded fallbacks.
 3. **Frontend gets public configuration only.** `import.meta.env` values must
    start with `VITE_` and be non-secret. An API key must never reach the
    browser bundle.
-4. **All LLM traffic originates in the backend.** The frontend calls
-   `POST /api/agent/diagnose`; it never talks to Ollama or OpenAI directly.
-5. **Compose uses indirection only.** `env_file: ../.env` and `${VAR}` — never
-   literal credentials.
+4. **All LLM traffic originates in the backend.** The frontend never talks to
+   Ollama or OpenAI directly; it calls the backend API only.
+5. **No Compose or literal credentials.** Chaos faults are simulated in-process;
+   there is no `docker-compose.yml` and no `${VAR}` credential indirection.
 
 ## Environment files
 
@@ -67,8 +66,8 @@ history and in GitHub caches.
 
 ## Threat model notes
 
-- ChaosPilot is a lab tool. It can stop containers and inject faults; do not
-  point it at systems you do not own.
+- ChaosPilot is a lab tool. It can inject simulated faults; do not point it at
+  systems you do not own.
 - The API has no authentication. Bind it to `127.0.0.1` (default) and never
   expose it to the public internet.
 - SQLite contains operational telemetry, not credentials.

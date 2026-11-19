@@ -4,7 +4,6 @@ import { DEFAULT_TOPOLOGY } from "../lib/topology";
 import { clamp } from "../lib/stats";
 import { startMockExperiment, type MockHandle } from "../mock/script";
 import type {
-  AgentPlan,
   ConnectionState,
   ExperimentSummary,
   FaultKind,
@@ -12,8 +11,8 @@ import type {
   LogLine,
   MetricSample,
   RunOutcome,
-  RunOverrides,
   ScoreBreakdown,
+  Scenario,
   ServiceRuntime,
   Topology,
   WsEvent,
@@ -79,6 +78,35 @@ const MOCK_EXPERIMENTS: ExperimentSummary[] = [
     ended: MOCK_STARTED_AT - 26 * 3_600_000 + 44_000,
     sample_count: 252,
     error_count: 2,
+  },
+];
+
+const MOCK_SCENARIOS: Scenario[] = [
+  {
+    id: 1,
+    fault_type: "latency",
+    target_service: "payments",
+    duration_minutes: 15,
+    severity: "high",
+    load_curve: [],
+    source: "seed",
+    source_url: "scripts/build_seed.py",
+    data_source: "seed",
+    title: "seed latency on payments",
+    created_at: MOCK_STARTED_AT - 10 * 60_000,
+  },
+  {
+    id: 2,
+    fault_type: "kill",
+    target_service: "db",
+    duration_minutes: 30,
+    severity: "critical",
+    load_curve: [],
+    source: "seed",
+    source_url: "scripts/build_seed.py",
+    data_source: "seed",
+    title: "seed database crash",
+    created_at: MOCK_STARTED_AT - 20 * 60_000,
   },
 ];
 
@@ -164,26 +192,25 @@ interface ChaosState {
   postmortemSource: "llm" | "template" | null;
 
   running: boolean;
-  planning: boolean;
+  collecting: boolean;
   activeExperimentId: number | null;
   runStartedAt: number | null;
-  fault: FaultKind;
-  target: string;
   applyFixes: boolean;
-  agentPlan: AgentPlan | null;
+  selectedScenarioId: number | null;
+  scenarios: Scenario[];
   experiments: ExperimentSummary[];
   compareOff: RunOutcome | null;
   compareOn: RunOutcome | null;
 
   setConnection: (state: ConnectionState) => void;
-  setFault: (fault: FaultKind) => void;
-  setTarget: (target: string) => void;
   setApplyFixes: (enabled: boolean) => void;
+  selectScenario: (id: number | null) => void;
   ingest: (event: WsEvent) => void;
-  runExperiment: (overrides?: RunOverrides) => Promise<void>;
-  runAgentExperiment: () => Promise<void>;
+  runExperiment: (overrides?: { scenario_id?: number; fixes?: boolean }) => Promise<void>;
+  collectData: () => Promise<void>;
   loadTopology: () => Promise<void>;
   refreshExperiments: () => Promise<void>;
+  refreshScenarios: () => Promise<void>;
   loadExperiment: (id: number) => Promise<void>;
   bootstrap: () => Promise<void>;
 }
@@ -207,13 +234,12 @@ export const useChaosStore = create<ChaosState>((set, get) => ({
   postmortemSource: null,
 
   running: false,
-  planning: false,
+  collecting: false,
   activeExperimentId: null,
   runStartedAt: null,
-  fault: "latency",
-  target: "payments",
   applyFixes: false,
-  agentPlan: null,
+  selectedScenarioId: MOCK_MODE ? MOCK_SCENARIOS[0].id : null,
+  scenarios: MOCK_MODE ? MOCK_SCENARIOS : [],
   experiments: MOCK_MODE ? MOCK_EXPERIMENTS : [],
   compareOff: MOCK_MODE ? outcomeFor(MOCK_EXPERIMENTS[2]) : null,
   compareOn: MOCK_MODE ? outcomeFor(MOCK_EXPERIMENTS[0]) : null,
@@ -227,9 +253,9 @@ export const useChaosStore = create<ChaosState>((set, get) => ({
         connection === "live" && state.backendDown ? null : state.lastError,
     })),
 
-  setFault: (fault) => set({ fault }),
-  setTarget: (target) => set({ target }),
   setApplyFixes: (applyFixes) => set({ applyFixes }),
+
+  selectScenario: (id) => set({ selectedScenarioId: id }),
 
   ingest: (event) => {
     if (event.type === "state") {
@@ -295,8 +321,11 @@ export const useChaosStore = create<ChaosState>((set, get) => ({
     const score = Math.round(state.score);
     const outcome: RunOutcome = {
       id: finishedId,
-      fault: state.fault,
-      target: state.target,
+      fault: "latency",
+      target: state.selectedScenarioId
+        ? state.scenarios.find((s) => s.id === state.selectedScenarioId)?.target_service ??
+          "payments"
+        : "payments",
       fixes: state.applyFixes,
       score,
       at: finishedAt,
@@ -305,7 +334,6 @@ export const useChaosStore = create<ChaosState>((set, get) => ({
       postmortem: event.text,
       postmortemSource: event.source ?? (event.structured ? "llm" : "template"),
       running: false,
-      planning: false,
       activeExperimentId: null,
       ...(state.applyFixes ? { compareOn: outcome } : { compareOff: outcome }),
     });
@@ -313,8 +341,8 @@ export const useChaosStore = create<ChaosState>((set, get) => ({
     if (state.mockMode) {
       const summary: ExperimentSummary = {
         id: finishedId ?? ++mockId,
-        fault: state.fault,
-        target: state.target,
+        fault: "latency",
+        target: outcome.target,
         fixes: state.applyFixes,
         status: "completed",
         score,
@@ -335,20 +363,62 @@ export const useChaosStore = create<ChaosState>((set, get) => ({
     void get().refreshExperiments();
   },
 
+  collectData: async () => {
+    if (get().collecting) return;
+    set({ collecting: true, lastError: null });
+    get().ingest({
+      type: "log",
+      level: "info",
+      text: "collect data // asking the agent to build scenarios from public sources",
+    });
+
+    try {
+      const payload = await api.agentCollect();
+      set({
+        collecting: false,
+        scenarios: payload.scenarios,
+        backendDown: false,
+        selectedScenarioId:
+          payload.scenarios.length > 0
+            ? payload.scenarios[0].id
+            : get().selectedScenarioId,
+      });
+      get().ingest({
+        type: "log",
+        level: "success",
+        text: `collected ${payload.count} scenarios // ready to run`,
+      });
+      const live = payload.scenarios.filter((s) => s.data_source === "live").length;
+      const cached = payload.scenarios.filter((s) => s.data_source === "cached").length;
+      const seed = payload.scenarios.filter((s) => s.data_source === "seed").length;
+      get().ingest({
+        type: "log",
+        level: "info",
+        text: `sources // live: ${live} cached: ${cached} seed: ${seed}`,
+      });
+    } catch (error) {
+      const message = errorMessage(error, "data collection failed");
+      set({ collecting: false, lastError: message, backendDown: error instanceof ApiError && error.status === 0 });
+      get().ingest({ type: "log", level: "error", text: `collect failed // ${message}` });
+    }
+  },
+
   runExperiment: async (overrides) => {
-    if (get().running || get().planning) return;
+    if (get().running || get().collecting) return;
 
     const mockMode = get().mockMode;
-    const fault = overrides?.fault ?? get().fault;
-    const target = overrides?.target ?? get().target;
+    const scenarioId = overrides?.scenario_id ?? get().selectedScenarioId;
+    if (scenarioId == null) {
+      set({ lastError: "no scenario selected" });
+      return;
+    }
     const applyFixes = overrides?.fixes ?? get().applyFixes;
+    const scenario = get().scenarios.find((s) => s.id === scenarioId);
     const startedAt = Date.now();
     const experimentId = mockMode ? ++mockId : null;
 
     set({
       running: true,
-      fault,
-      target,
       applyFixes,
       activeExperimentId: experimentId,
       runStartedAt: startedAt,
@@ -365,14 +435,14 @@ export const useChaosStore = create<ChaosState>((set, get) => ({
     get().ingest({
       type: "log",
       level: "info",
-      text: `operator request // ${fault} -> ${target} // fixes ${applyFixes ? "on" : "off"}`,
+      text: `run scenario #${scenarioId} // ${scenario?.fault_type} -> ${scenario?.target_service} // fixes ${applyFixes ? "on" : "off"}`,
     });
 
     if (mockMode) {
       mockHandle?.stop();
       mockHandle = startMockExperiment({
-        fault,
-        target,
+        fault: scenario?.fault_type ?? "latency",
+        target: scenario?.target_service ?? "payments",
         fixes: applyFixes,
         emit: (event) => get().ingest(event),
         onFinished: () => {
@@ -383,7 +453,7 @@ export const useChaosStore = create<ChaosState>((set, get) => ({
     }
 
     try {
-      const run = await api.runExperiment({ fault, target, fixes: applyFixes });
+      const run = await api.runExperiment({ scenario_id: scenarioId, fixes: applyFixes });
       set({ activeExperimentId: run.id, backendDown: false });
       get().ingest({
         type: "log",
@@ -400,55 +470,6 @@ export const useChaosStore = create<ChaosState>((set, get) => ({
         backendDown: error instanceof ApiError && error.status === 0,
       });
       get().ingest({ type: "log", level: "error", text: `run failed // ${message}` });
-    }
-  },
-
-  runAgentExperiment: async () => {
-    if (get().running || get().planning) return;
-
-    set({ planning: true, lastError: null });
-    get().ingest({
-      type: "log",
-      level: "info",
-      text: "agent mode // selecting the next experiment",
-    });
-
-    try {
-      const plan: AgentPlan = get().mockMode
-        ? {
-            fault: "latency",
-            target: "db",
-            hypothesis:
-              "db has the most callers, so delaying it should show how a local stall propagates.",
-            value: 2_000,
-            source: "rule",
-          }
-        : await api.agentPlan();
-
-      set({ planning: false, agentPlan: plan, backendDown: false });
-      get().ingest({
-        type: "log",
-        level: "success",
-        text: `agent plan // ${plan.fault} -> ${plan.target} // ${plan.source}`,
-      });
-      get().ingest({
-        type: "log",
-        level: "info",
-        text: `agent hypothesis // ${plan.hypothesis}`,
-      });
-      await get().runExperiment({ fault: plan.fault, target: plan.target });
-    } catch (error) {
-      const message = errorMessage(error, "agent planner unavailable");
-      set({
-        planning: false,
-        lastError: message,
-        backendDown: error instanceof ApiError && error.status === 0,
-      });
-      get().ingest({
-        type: "log",
-        level: "error",
-        text: `agent mode failed // ${message}`,
-      });
     }
   },
 
@@ -474,6 +495,19 @@ export const useChaosStore = create<ChaosState>((set, get) => ({
       }));
     } catch {
       // History is best-effort; the live stream still drives the dashboard.
+    }
+  },
+
+  refreshScenarios: async () => {
+    if (get().mockMode) return;
+    try {
+      const { scenarios } = await api.scenarios(50);
+      set({ scenarios });
+      if (scenarios.length > 0 && get().selectedScenarioId == null) {
+        set({ selectedScenarioId: scenarios[0].id });
+      }
+    } catch {
+      // Scenarios are best-effort; collect data to populate them.
     }
   },
 
@@ -526,6 +560,10 @@ export const useChaosStore = create<ChaosState>((set, get) => ({
       return;
     }
 
-    await Promise.all([get().loadTopology(), get().refreshExperiments()]);
+    await Promise.all([
+      get().loadTopology(),
+      get().refreshScenarios(),
+      get().refreshExperiments(),
+    ]);
   },
 }));

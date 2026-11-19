@@ -30,7 +30,6 @@ names the file it describes. Numbers come from the code and from
 - Reads env overrides such as `CHAOSPILOT_BASELINE_SECONDS` and
   `CHAOSPILOT_MEMORY_MB` through small `_env_*` helpers.
 - `stack_directory` points at the repository's `sample-stack/`; the default DB
-  is `backend/data/chaos.db`.
 - Contains no secrets: the LLM provider is configured separately in
   `backend/core/config.py`.
 

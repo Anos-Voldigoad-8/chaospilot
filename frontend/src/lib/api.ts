@@ -1,9 +1,9 @@
 import type {
-  AgentPlan,
   AgentStatus,
   ExperimentDetail,
   ExperimentSummary,
   RunRequest,
+  Scenario,
   Topology,
 } from "../types/chaos";
 
@@ -59,11 +59,18 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   health: () => request<{ status: string }>("/health"),
   topology: () => request<Topology>("/topology"),
-  agentPlan: () =>
-    request<AgentPlan>("/agent/plan", {
+  agentStatus: () => request<AgentStatus>("/agent/status"),
+  // Collect real-world data via the backend data agent. Streams progress over
+  // the WebSocket; returns the scenarios it persisted.
+  agentCollect: () =>
+    request<{ scenarios: Scenario[]; count: number }>("/agent/collect", {
       method: "POST",
     }),
-  agentStatus: () => request<AgentStatus>("/agent/status"),
+  scenarios: (limit = 50) =>
+    request<{ scenarios: Scenario[]; count: number }>(
+      `/scenarios?limit=${limit}`,
+    ),
+  // An experiment can ONLY run a scenario stored by the agent.
   runExperiment: (payload: RunRequest) =>
     request<ExperimentSummary>("/experiments/run", {
       method: "POST",

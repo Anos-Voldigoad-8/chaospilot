@@ -111,9 +111,14 @@ function Legend() {
 export function ServiceMap() {
   const topology = useChaosStore((state) => state.topology);
   const services = useChaosStore((state) => state.services);
-  const target = useChaosStore((state) => state.target);
+  const selectedScenarioId = useChaosStore((state) => state.selectedScenarioId);
+  const scenarios = useChaosStore((state) => state.scenarios);
   const connection = useChaosStore((state) => state.connection);
   const mockMode = useChaosStore((state) => state.mockMode);
+
+  const targetService = selectedScenarioId != null
+    ? scenarios.find((s) => s.id === selectedScenarioId)?.target_service ?? null
+    : null;
 
   const nodes = useMemo<ServiceNodeType[]>(
     () =>
@@ -131,11 +136,11 @@ export function ServiceMap() {
             port: node.port,
             status: runtime?.status ?? "ok",
             latency: runtime?.latency_ms ?? 0,
-            isTarget: node.id === target,
+            isTarget: node.id === targetService,
           },
         };
       }),
-    [topology.nodes, services, target],
+    [topology.nodes, services, targetService],
   );
 
   const edges = useMemo<Edge[]>(

@@ -1,5 +1,6 @@
 export type ServiceStatus = "ok" | "warn" | "bad";
 export type FaultKind = "kill" | "latency" | "memory";
+export type DataSource = "live" | "cached" | "seed";
 export type LogLevel = "info" | "warn" | "error" | "success";
 export type ConnectionState = "connecting" | "live" | "offline" | "mock";
 
@@ -78,14 +79,6 @@ export type WsEvent =
   | ScoreEvent
   | PostmortemEvent;
 
-export interface AgentPlan {
-  fault: FaultKind;
-  target: string;
-  hypothesis: string;
-  value?: number | null;
-  source: "llm" | "rule";
-}
-
 export interface AgentStatus {
   provider: string;
   model: string | null;
@@ -109,12 +102,6 @@ export interface RunOutcome {
   at: number;
 }
 
-export interface RunOverrides {
-  fault?: FaultKind;
-  target?: string;
-  fixes?: boolean;
-}
-
 export interface ServiceRuntime {
   status: ServiceStatus;
   latency_ms: number;
@@ -131,6 +118,20 @@ export interface MetricSample {
   t: number;
   latency: number;
   errorRate: number;
+}
+
+export interface Scenario {
+  id: number;
+  fault_type: FaultKind;
+  target_service: string;
+  duration_minutes: number;
+  severity: string;
+  load_curve: Array<{ t: string; v: number }>;
+  source: string;
+  source_url: string;
+  data_source: DataSource;
+  title: string;
+  created_at: number;
 }
 
 export interface ExperimentSummary {
@@ -154,7 +155,6 @@ export interface ExperimentDetail extends ExperimentSummary {
 }
 
 export interface RunRequest {
-  fault: FaultKind;
-  target: string;
+  scenario_id: number;
   fixes: boolean;
 }

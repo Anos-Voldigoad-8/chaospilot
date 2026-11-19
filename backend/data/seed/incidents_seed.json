@@ -1,0 +1,1502 @@
+[
+  {
+    "id": "INC-1001",
+    "component": "gateway",
+    "component_name": "API Gateway",
+    "impact": "minor",
+    "duration_minutes": 14,
+    "fault_type": "kill",
+    "title": "API Gateway pod terminated by node pressure",
+    "occurred_at": 1772486620.1108496
+  },
+  {
+    "id": "INC-1002",
+    "component": "auth",
+    "component_name": "Auth Service",
+    "impact": "moderate",
+    "duration_minutes": 22,
+    "fault_type": "kill",
+    "title": "Auth Service process exited unexpectedly",
+    "occurred_at": 1790759139.4764361
+  },
+  {
+    "id": "INC-1003",
+    "component": "orders",
+    "component_name": "Orders Service",
+    "impact": "major",
+    "duration_minutes": 94,
+    "fault_type": "latency",
+    "title": "Orders Service degraded response times",
+    "occurred_at": 1778120058.5746975
+  },
+  {
+    "id": "INC-1004",
+    "component": "payments",
+    "component_name": "Payments Service",
+    "impact": "minor",
+    "duration_minutes": 9,
+    "fault_type": "memory",
+    "title": "Payments Service heap exhaustion",
+    "occurred_at": 1772440757.6262918
+  },
+  {
+    "id": "INC-1005",
+    "component": "cache",
+    "component_name": "Session Cache",
+    "impact": "major",
+    "duration_minutes": 179,
+    "fault_type": "latency",
+    "title": "Session Cache degraded response times",
+    "occurred_at": 1793371787.4886618
+  },
+  {
+    "id": "INC-1006",
+    "component": "db",
+    "component_name": "Database",
+    "impact": "critical",
+    "duration_minutes": 476,
+    "fault_type": "kill",
+    "title": "Database instance crashed",
+    "occurred_at": 1764061483.8963387
+  },
+  {
+    "id": "INC-1007",
+    "component": "gateway",
+    "component_name": "API Gateway",
+    "impact": "major",
+    "duration_minutes": 162,
+    "fault_type": "memory",
+    "title": "API Gateway memory pressure",
+    "occurred_at": 1773444142.904123
+  },
+  {
+    "id": "INC-1008",
+    "component": "auth",
+    "component_name": "Auth Service",
+    "impact": "minor",
+    "duration_minutes": 11,
+    "fault_type": "kill",
+    "title": "Auth Service instance crashed",
+    "occurred_at": 1772991359.8778584
+  },
+  {
+    "id": "INC-1009",
+    "component": "orders",
+    "component_name": "Orders Service",
+    "impact": "moderate",
+    "duration_minutes": 57,
+    "fault_type": "latency",
+    "title": "Orders Service slow responses under load",
+    "occurred_at": 1764003602.9003239
+  },
+  {
+    "id": "INC-1010",
+    "component": "payments",
+    "component_name": "Payments Service",
+    "impact": "minor",
+    "duration_minutes": 15,
+    "fault_type": "latency",
+    "title": "Payments Service elevated latency spike",
+    "occurred_at": 1794031047.9668632
+  },
+  {
+    "id": "INC-1011",
+    "component": "cache",
+    "component_name": "Session Cache",
+    "impact": "critical",
+    "duration_minutes": 350,
+    "fault_type": "memory",
+    "title": "Session Cache memory pressure",
+    "occurred_at": 1780250549.5613413
+  },
+  {
+    "id": "INC-1012",
+    "component": "db",
+    "component_name": "Database",
+    "impact": "critical",
+    "duration_minutes": 336,
+    "fault_type": "memory",
+    "title": "Database memory pressure",
+    "occurred_at": 1788881795.8532503
+  },
+  {
+    "id": "INC-1013",
+    "component": "gateway",
+    "component_name": "API Gateway",
+    "impact": "moderate",
+    "duration_minutes": 47,
+    "fault_type": "latency",
+    "title": "API Gateway slow responses under load",
+    "occurred_at": 1788808958.7492511
+  },
+  {
+    "id": "INC-1014",
+    "component": "auth",
+    "component_name": "Auth Service",
+    "impact": "minor",
+    "duration_minutes": 15,
+    "fault_type": "latency",
+    "title": "Auth Service slow responses under load",
+    "occurred_at": 1785643046.350845
+  },
+  {
+    "id": "INC-1015",
+    "component": "orders",
+    "component_name": "Orders Service",
+    "impact": "moderate",
+    "duration_minutes": 21,
+    "fault_type": "memory",
+    "title": "Orders Service out-of-memory kill",
+    "occurred_at": 1782279853.4599862
+  },
+  {
+    "id": "INC-1016",
+    "component": "payments",
+    "component_name": "Payments Service",
+    "impact": "critical",
+    "duration_minutes": 388,
+    "fault_type": "latency",
+    "title": "Payments Service elevated latency spike",
+    "occurred_at": 1772687008.9296856
+  },
+  {
+    "id": "INC-1017",
+    "component": "cache",
+    "component_name": "Session Cache",
+    "impact": "minor",
+    "duration_minutes": 14,
+    "fault_type": "memory",
+    "title": "Session Cache heap exhaustion",
+    "occurred_at": 1785367952.6785886
+  },
+  {
+    "id": "INC-1018",
+    "component": "db",
+    "component_name": "Database",
+    "impact": "critical",
+    "duration_minutes": 207,
+    "fault_type": "memory",
+    "title": "Database out-of-memory kill",
+    "occurred_at": 1786599983.7240608
+  },
+  {
+    "id": "INC-1019",
+    "component": "gateway",
+    "component_name": "API Gateway",
+    "impact": "critical",
+    "duration_minutes": 317,
+    "fault_type": "kill",
+    "title": "API Gateway pod terminated by node pressure",
+    "occurred_at": 1769229069.9397955
+  },
+  {
+    "id": "INC-1020",
+    "component": "auth",
+    "component_name": "Auth Service",
+    "impact": "minor",
+    "duration_minutes": 11,
+    "fault_type": "memory",
+    "title": "Auth Service heap exhaustion",
+    "occurred_at": 1792192973.0908346
+  },
+  {
+    "id": "INC-1021",
+    "component": "orders",
+    "component_name": "Orders Service",
+    "impact": "minor",
+    "duration_minutes": 6,
+    "fault_type": "kill",
+    "title": "Orders Service instance crashed",
+    "occurred_at": 1778561203.2960203
+  },
+  {
+    "id": "INC-1022",
+    "component": "payments",
+    "component_name": "Payments Service",
+    "impact": "major",
+    "duration_minutes": 164,
+    "fault_type": "latency",
+    "title": "Payments Service slow responses under load",
+    "occurred_at": 1792006226.915785
+  },
+  {
+    "id": "INC-1023",
+    "component": "cache",
+    "component_name": "Session Cache",
+    "impact": "moderate",
+    "duration_minutes": 20,
+    "fault_type": "latency",
+    "title": "Session Cache elevated latency spike",
+    "occurred_at": 1777995139.0892904
+  },
+  {
+    "id": "INC-1024",
+    "component": "db",
+    "component_name": "Database",
+    "impact": "moderate",
+    "duration_minutes": 57,
+    "fault_type": "latency",
+    "title": "Database slow responses under load",
+    "occurred_at": 1779726762.8902106
+  },
+  {
+    "id": "INC-1025",
+    "component": "gateway",
+    "component_name": "API Gateway",
+    "impact": "critical",
+    "duration_minutes": 437,
+    "fault_type": "kill",
+    "title": "API Gateway pod terminated by node pressure",
+    "occurred_at": 1788731382.8673058
+  },
+  {
+    "id": "INC-1026",
+    "component": "auth",
+    "component_name": "Auth Service",
+    "impact": "major",
+    "duration_minutes": 171,
+    "fault_type": "kill",
+    "title": "Auth Service instance crashed",
+    "occurred_at": 1764029554.7274005
+  },
+  {
+    "id": "INC-1027",
+    "component": "orders",
+    "component_name": "Orders Service",
+    "impact": "major",
+    "duration_minutes": 72,
+    "fault_type": "kill",
+    "title": "Orders Service pod terminated by node pressure",
+    "occurred_at": 1768845546.520025
+  },
+  {
+    "id": "INC-1028",
+    "component": "payments",
+    "component_name": "Payments Service",
+    "impact": "major",
+    "duration_minutes": 119,
+    "fault_type": "kill",
+    "title": "Payments Service pod terminated by node pressure",
+    "occurred_at": 1783679045.98948
+  },
+  {
+    "id": "INC-1029",
+    "component": "cache",
+    "component_name": "Session Cache",
+    "impact": "minor",
+    "duration_minutes": 13,
+    "fault_type": "memory",
+    "title": "Session Cache out-of-memory kill",
+    "occurred_at": 1763744160.3104632
+  },
+  {
+    "id": "INC-1030",
+    "component": "db",
+    "component_name": "Database",
+    "impact": "minor",
+    "duration_minutes": 20,
+    "fault_type": "latency",
+    "title": "Database slow responses under load",
+    "occurred_at": 1776426865.8829901
+  },
+  {
+    "id": "INC-1031",
+    "component": "gateway",
+    "component_name": "API Gateway",
+    "impact": "major",
+    "duration_minutes": 138,
+    "fault_type": "memory",
+    "title": "API Gateway out-of-memory kill",
+    "occurred_at": 1764418312.382507
+  },
+  {
+    "id": "INC-1032",
+    "component": "auth",
+    "component_name": "Auth Service",
+    "impact": "critical",
+    "duration_minutes": 235,
+    "fault_type": "memory",
+    "title": "Auth Service out-of-memory kill",
+    "occurred_at": 1790672727.6009612
+  },
+  {
+    "id": "INC-1033",
+    "component": "orders",
+    "component_name": "Orders Service",
+    "impact": "major",
+    "duration_minutes": 165,
+    "fault_type": "kill",
+    "title": "Orders Service instance crashed",
+    "occurred_at": 1777630337.7353141
+  },
+  {
+    "id": "INC-1034",
+    "component": "payments",
+    "component_name": "Payments Service",
+    "impact": "minor",
+    "duration_minutes": 20,
+    "fault_type": "latency",
+    "title": "Payments Service slow responses under load",
+    "occurred_at": 1773692521.342824
+  },
+  {
+    "id": "INC-1035",
+    "component": "cache",
+    "component_name": "Session Cache",
+    "impact": "minor",
+    "duration_minutes": 15,
+    "fault_type": "latency",
+    "title": "Session Cache degraded response times",
+    "occurred_at": 1782150183.4756472
+  },
+  {
+    "id": "INC-1036",
+    "component": "db",
+    "component_name": "Database",
+    "impact": "major",
+    "duration_minutes": 159,
+    "fault_type": "memory",
+    "title": "Database heap exhaustion",
+    "occurred_at": 1774455069.8418381
+  },
+  {
+    "id": "INC-1037",
+    "component": "gateway",
+    "component_name": "API Gateway",
+    "impact": "critical",
+    "duration_minutes": 274,
+    "fault_type": "latency",
+    "title": "API Gateway slow responses under load",
+    "occurred_at": 1772500197.425991
+  },
+  {
+    "id": "INC-1038",
+    "component": "auth",
+    "component_name": "Auth Service",
+    "impact": "critical",
+    "duration_minutes": 366,
+    "fault_type": "memory",
+    "title": "Auth Service out-of-memory kill",
+    "occurred_at": 1767128396.7437696
+  },
+  {
+    "id": "INC-1039",
+    "component": "orders",
+    "component_name": "Orders Service",
+    "impact": "critical",
+    "duration_minutes": 464,
+    "fault_type": "latency",
+    "title": "Orders Service slow responses under load",
+    "occurred_at": 1768788518.9329472
+  },
+  {
+    "id": "INC-1040",
+    "component": "payments",
+    "component_name": "Payments Service",
+    "impact": "moderate",
+    "duration_minutes": 27,
+    "fault_type": "kill",
+    "title": "Payments Service pod terminated by node pressure",
+    "occurred_at": 1791599228.9628518
+  },
+  {
+    "id": "INC-1041",
+    "component": "cache",
+    "component_name": "Session Cache",
+    "impact": "minor",
+    "duration_minutes": 19,
+    "fault_type": "memory",
+    "title": "Session Cache out-of-memory kill",
+    "occurred_at": 1792815879.9122508
+  },
+  {
+    "id": "INC-1042",
+    "component": "db",
+    "component_name": "Database",
+    "impact": "critical",
+    "duration_minutes": 302,
+    "fault_type": "kill",
+    "title": "Database process exited unexpectedly",
+    "occurred_at": 1765229226.0953722
+  },
+  {
+    "id": "INC-1043",
+    "component": "gateway",
+    "component_name": "API Gateway",
+    "impact": "minor",
+    "duration_minutes": 9,
+    "fault_type": "memory",
+    "title": "API Gateway memory pressure",
+    "occurred_at": 1770358332.58789
+  },
+  {
+    "id": "INC-1044",
+    "component": "auth",
+    "component_name": "Auth Service",
+    "impact": "minor",
+    "duration_minutes": 20,
+    "fault_type": "latency",
+    "title": "Auth Service degraded response times",
+    "occurred_at": 1792016419.9507613
+  },
+  {
+    "id": "INC-1045",
+    "component": "orders",
+    "component_name": "Orders Service",
+    "impact": "major",
+    "duration_minutes": 101,
+    "fault_type": "memory",
+    "title": "Orders Service heap exhaustion",
+    "occurred_at": 1794733067.2470098
+  },
+  {
+    "id": "INC-1046",
+    "component": "payments",
+    "component_name": "Payments Service",
+    "impact": "moderate",
+    "duration_minutes": 49,
+    "fault_type": "memory",
+    "title": "Payments Service heap exhaustion",
+    "occurred_at": 1770035423.0921648
+  },
+  {
+    "id": "INC-1047",
+    "component": "cache",
+    "component_name": "Session Cache",
+    "impact": "critical",
+    "duration_minutes": 236,
+    "fault_type": "latency",
+    "title": "Session Cache elevated latency spike",
+    "occurred_at": 1794790304.4054878
+  },
+  {
+    "id": "INC-1048",
+    "component": "db",
+    "component_name": "Database",
+    "impact": "minor",
+    "duration_minutes": 10,
+    "fault_type": "latency",
+    "title": "Database degraded response times",
+    "occurred_at": 1778569832.9385967
+  },
+  {
+    "id": "INC-1049",
+    "component": "gateway",
+    "component_name": "API Gateway",
+    "impact": "major",
+    "duration_minutes": 130,
+    "fault_type": "latency",
+    "title": "API Gateway degraded response times",
+    "occurred_at": 1781920451.0944335
+  },
+  {
+    "id": "INC-1050",
+    "component": "auth",
+    "component_name": "Auth Service",
+    "impact": "critical",
+    "duration_minutes": 297,
+    "fault_type": "kill",
+    "title": "Auth Service instance crashed",
+    "occurred_at": 1787513921.450871
+  },
+  {
+    "id": "INC-1051",
+    "component": "orders",
+    "component_name": "Orders Service",
+    "impact": "critical",
+    "duration_minutes": 317,
+    "fault_type": "kill",
+    "title": "Orders Service pod terminated by node pressure",
+    "occurred_at": 1767690343.0281126
+  },
+  {
+    "id": "INC-1052",
+    "component": "payments",
+    "component_name": "Payments Service",
+    "impact": "minor",
+    "duration_minutes": 9,
+    "fault_type": "kill",
+    "title": "Payments Service pod terminated by node pressure",
+    "occurred_at": 1764842555.5951517
+  },
+  {
+    "id": "INC-1053",
+    "component": "cache",
+    "component_name": "Session Cache",
+    "impact": "critical",
+    "duration_minutes": 356,
+    "fault_type": "latency",
+    "title": "Session Cache slow responses under load",
+    "occurred_at": 1794148449.0674775
+  },
+  {
+    "id": "INC-1054",
+    "component": "db",
+    "component_name": "Database",
+    "impact": "moderate",
+    "duration_minutes": 31,
+    "fault_type": "memory",
+    "title": "Database memory pressure",
+    "occurred_at": 1766271231.8259246
+  },
+  {
+    "id": "INC-1055",
+    "component": "gateway",
+    "component_name": "API Gateway",
+    "impact": "minor",
+    "duration_minutes": 15,
+    "fault_type": "memory",
+    "title": "API Gateway memory pressure",
+    "occurred_at": 1778717964.2697883
+  },
+  {
+    "id": "INC-1056",
+    "component": "auth",
+    "component_name": "Auth Service",
+    "impact": "minor",
+    "duration_minutes": 18,
+    "fault_type": "kill",
+    "title": "Auth Service instance crashed",
+    "occurred_at": 1790867626.3665013
+  },
+  {
+    "id": "INC-1057",
+    "component": "orders",
+    "component_name": "Orders Service",
+    "impact": "moderate",
+    "duration_minutes": 45,
+    "fault_type": "latency",
+    "title": "Orders Service degraded response times",
+    "occurred_at": 1777472830.1187532
+  },
+  {
+    "id": "INC-1058",
+    "component": "payments",
+    "component_name": "Payments Service",
+    "impact": "minor",
+    "duration_minutes": 13,
+    "fault_type": "latency",
+    "title": "Payments Service elevated latency spike",
+    "occurred_at": 1792129023.8831334
+  },
+  {
+    "id": "INC-1059",
+    "component": "cache",
+    "component_name": "Session Cache",
+    "impact": "major",
+    "duration_minutes": 90,
+    "fault_type": "memory",
+    "title": "Session Cache heap exhaustion",
+    "occurred_at": 1788164229.4726598
+  },
+  {
+    "id": "INC-1060",
+    "component": "db",
+    "component_name": "Database",
+    "impact": "minor",
+    "duration_minutes": 16,
+    "fault_type": "memory",
+    "title": "Database out-of-memory kill",
+    "occurred_at": 1774167235.1808548
+  },
+  {
+    "id": "INC-1061",
+    "component": "gateway",
+    "component_name": "API Gateway",
+    "impact": "critical",
+    "duration_minutes": 190,
+    "fault_type": "memory",
+    "title": "API Gateway memory pressure",
+    "occurred_at": 1778741269.6663191
+  },
+  {
+    "id": "INC-1062",
+    "component": "auth",
+    "component_name": "Auth Service",
+    "impact": "critical",
+    "duration_minutes": 418,
+    "fault_type": "latency",
+    "title": "Auth Service degraded response times",
+    "occurred_at": 1783333539.4579637
+  },
+  {
+    "id": "INC-1063",
+    "component": "orders",
+    "component_name": "Orders Service",
+    "impact": "major",
+    "duration_minutes": 109,
+    "fault_type": "memory",
+    "title": "Orders Service memory pressure",
+    "occurred_at": 1780766827.2345989
+  },
+  {
+    "id": "INC-1064",
+    "component": "payments",
+    "component_name": "Payments Service",
+    "impact": "major",
+    "duration_minutes": 154,
+    "fault_type": "kill",
+    "title": "Payments Service instance crashed",
+    "occurred_at": 1792218540.48991
+  },
+  {
+    "id": "INC-1065",
+    "component": "cache",
+    "component_name": "Session Cache",
+    "impact": "critical",
+    "duration_minutes": 410,
+    "fault_type": "latency",
+    "title": "Session Cache elevated latency spike",
+    "occurred_at": 1774964734.2496736
+  },
+  {
+    "id": "INC-1066",
+    "component": "db",
+    "component_name": "Database",
+    "impact": "minor",
+    "duration_minutes": 11,
+    "fault_type": "kill",
+    "title": "Database instance crashed",
+    "occurred_at": 1790631132.5183494
+  },
+  {
+    "id": "INC-1067",
+    "component": "gateway",
+    "component_name": "API Gateway",
+    "impact": "major",
+    "duration_minutes": 143,
+    "fault_type": "memory",
+    "title": "API Gateway heap exhaustion",
+    "occurred_at": 1778294213.7671142
+  },
+  {
+    "id": "INC-1068",
+    "component": "auth",
+    "component_name": "Auth Service",
+    "impact": "minor",
+    "duration_minutes": 16,
+    "fault_type": "latency",
+    "title": "Auth Service degraded response times",
+    "occurred_at": 1777188086.2937365
+  },
+  {
+    "id": "INC-1069",
+    "component": "orders",
+    "component_name": "Orders Service",
+    "impact": "minor",
+    "duration_minutes": 8,
+    "fault_type": "latency",
+    "title": "Orders Service slow responses under load",
+    "occurred_at": 1774177077.7528713
+  },
+  {
+    "id": "INC-1070",
+    "component": "payments",
+    "component_name": "Payments Service",
+    "impact": "minor",
+    "duration_minutes": 6,
+    "fault_type": "memory",
+    "title": "Payments Service memory pressure",
+    "occurred_at": 1786767151.6105332
+  },
+  {
+    "id": "INC-1071",
+    "component": "cache",
+    "component_name": "Session Cache",
+    "impact": "critical",
+    "duration_minutes": 220,
+    "fault_type": "kill",
+    "title": "Session Cache instance crashed",
+    "occurred_at": 1763743729.797507
+  },
+  {
+    "id": "INC-1072",
+    "component": "db",
+    "component_name": "Database",
+    "impact": "major",
+    "duration_minutes": 71,
+    "fault_type": "kill",
+    "title": "Database instance crashed",
+    "occurred_at": 1786876322.9863954
+  },
+  {
+    "id": "INC-1073",
+    "component": "gateway",
+    "component_name": "API Gateway",
+    "impact": "critical",
+    "duration_minutes": 387,
+    "fault_type": "memory",
+    "title": "API Gateway memory pressure",
+    "occurred_at": 1770598466.0521576
+  },
+  {
+    "id": "INC-1074",
+    "component": "auth",
+    "component_name": "Auth Service",
+    "impact": "minor",
+    "duration_minutes": 13,
+    "fault_type": "memory",
+    "title": "Auth Service out-of-memory kill",
+    "occurred_at": 1779917744.6919138
+  },
+  {
+    "id": "INC-1075",
+    "component": "orders",
+    "component_name": "Orders Service",
+    "impact": "major",
+    "duration_minutes": 165,
+    "fault_type": "kill",
+    "title": "Orders Service process exited unexpectedly",
+    "occurred_at": 1774553664.4282355
+  },
+  {
+    "id": "INC-1076",
+    "component": "payments",
+    "component_name": "Payments Service",
+    "impact": "moderate",
+    "duration_minutes": 30,
+    "fault_type": "latency",
+    "title": "Payments Service elevated latency spike",
+    "occurred_at": 1785593545.1077473
+  },
+  {
+    "id": "INC-1077",
+    "component": "cache",
+    "component_name": "Session Cache",
+    "impact": "major",
+    "duration_minutes": 153,
+    "fault_type": "memory",
+    "title": "Session Cache memory pressure",
+    "occurred_at": 1777137664.012783
+  },
+  {
+    "id": "INC-1078",
+    "component": "db",
+    "component_name": "Database",
+    "impact": "critical",
+    "duration_minutes": 398,
+    "fault_type": "memory",
+    "title": "Database out-of-memory kill",
+    "occurred_at": 1772966790.9801319
+  },
+  {
+    "id": "INC-1079",
+    "component": "gateway",
+    "component_name": "API Gateway",
+    "impact": "moderate",
+    "duration_minutes": 60,
+    "fault_type": "kill",
+    "title": "API Gateway process exited unexpectedly",
+    "occurred_at": 1791632022.6018574
+  },
+  {
+    "id": "INC-1080",
+    "component": "auth",
+    "component_name": "Auth Service",
+    "impact": "moderate",
+    "duration_minutes": 56,
+    "fault_type": "memory",
+    "title": "Auth Service heap exhaustion",
+    "occurred_at": 1784013714.1581326
+  },
+  {
+    "id": "INC-1081",
+    "component": "orders",
+    "component_name": "Orders Service",
+    "impact": "critical",
+    "duration_minutes": 347,
+    "fault_type": "kill",
+    "title": "Orders Service pod terminated by node pressure",
+    "occurred_at": 1776018207.2869542
+  },
+  {
+    "id": "INC-1082",
+    "component": "payments",
+    "component_name": "Payments Service",
+    "impact": "major",
+    "duration_minutes": 112,
+    "fault_type": "memory",
+    "title": "Payments Service heap exhaustion",
+    "occurred_at": 1775382968.7768035
+  },
+  {
+    "id": "INC-1083",
+    "component": "cache",
+    "component_name": "Session Cache",
+    "impact": "critical",
+    "duration_minutes": 272,
+    "fault_type": "latency",
+    "title": "Session Cache elevated latency spike",
+    "occurred_at": 1769471398.1979785
+  },
+  {
+    "id": "INC-1084",
+    "component": "db",
+    "component_name": "Database",
+    "impact": "critical",
+    "duration_minutes": 283,
+    "fault_type": "memory",
+    "title": "Database out-of-memory kill",
+    "occurred_at": 1793750690.4840465
+  },
+  {
+    "id": "INC-1085",
+    "component": "gateway",
+    "component_name": "API Gateway",
+    "impact": "major",
+    "duration_minutes": 168,
+    "fault_type": "memory",
+    "title": "API Gateway out-of-memory kill",
+    "occurred_at": 1782444452.1897185
+  },
+  {
+    "id": "INC-1086",
+    "component": "auth",
+    "component_name": "Auth Service",
+    "impact": "minor",
+    "duration_minutes": 10,
+    "fault_type": "latency",
+    "title": "Auth Service slow responses under load",
+    "occurred_at": 1767634081.750443
+  },
+  {
+    "id": "INC-1087",
+    "component": "orders",
+    "component_name": "Orders Service",
+    "impact": "minor",
+    "duration_minutes": 20,
+    "fault_type": "kill",
+    "title": "Orders Service instance crashed",
+    "occurred_at": 1776410097.1091154
+  },
+  {
+    "id": "INC-1088",
+    "component": "payments",
+    "component_name": "Payments Service",
+    "impact": "moderate",
+    "duration_minutes": 51,
+    "fault_type": "memory",
+    "title": "Payments Service memory pressure",
+    "occurred_at": 1766023317.041613
+  },
+  {
+    "id": "INC-1089",
+    "component": "cache",
+    "component_name": "Session Cache",
+    "impact": "minor",
+    "duration_minutes": 17,
+    "fault_type": "kill",
+    "title": "Session Cache process exited unexpectedly",
+    "occurred_at": 1788772119.9708164
+  },
+  {
+    "id": "INC-1090",
+    "component": "db",
+    "component_name": "Database",
+    "impact": "major",
+    "duration_minutes": 87,
+    "fault_type": "memory",
+    "title": "Database heap exhaustion",
+    "occurred_at": 1774297245.1972332
+  },
+  {
+    "id": "INC-1091",
+    "component": "gateway",
+    "component_name": "API Gateway",
+    "impact": "major",
+    "duration_minutes": 64,
+    "fault_type": "kill",
+    "title": "API Gateway instance crashed",
+    "occurred_at": 1780530912.3949413
+  },
+  {
+    "id": "INC-1092",
+    "component": "auth",
+    "component_name": "Auth Service",
+    "impact": "critical",
+    "duration_minutes": 324,
+    "fault_type": "kill",
+    "title": "Auth Service process exited unexpectedly",
+    "occurred_at": 1794654959.451548
+  },
+  {
+    "id": "INC-1093",
+    "component": "orders",
+    "component_name": "Orders Service",
+    "impact": "critical",
+    "duration_minutes": 203,
+    "fault_type": "kill",
+    "title": "Orders Service process exited unexpectedly",
+    "occurred_at": 1769853881.266571
+  },
+  {
+    "id": "INC-1094",
+    "component": "payments",
+    "component_name": "Payments Service",
+    "impact": "major",
+    "duration_minutes": 165,
+    "fault_type": "kill",
+    "title": "Payments Service process exited unexpectedly",
+    "occurred_at": 1770788037.8313606
+  },
+  {
+    "id": "INC-1095",
+    "component": "cache",
+    "component_name": "Session Cache",
+    "impact": "minor",
+    "duration_minutes": 20,
+    "fault_type": "memory",
+    "title": "Session Cache heap exhaustion",
+    "occurred_at": 1780273007.5688639
+  },
+  {
+    "id": "INC-1096",
+    "component": "db",
+    "component_name": "Database",
+    "impact": "moderate",
+    "duration_minutes": 55,
+    "fault_type": "latency",
+    "title": "Database degraded response times",
+    "occurred_at": 1774745328.768012
+  },
+  {
+    "id": "INC-1097",
+    "component": "gateway",
+    "component_name": "API Gateway",
+    "impact": "moderate",
+    "duration_minutes": 42,
+    "fault_type": "kill",
+    "title": "API Gateway instance crashed",
+    "occurred_at": 1774396566.2415707
+  },
+  {
+    "id": "INC-1098",
+    "component": "auth",
+    "component_name": "Auth Service",
+    "impact": "minor",
+    "duration_minutes": 7,
+    "fault_type": "latency",
+    "title": "Auth Service elevated latency spike",
+    "occurred_at": 1787539904.0227716
+  },
+  {
+    "id": "INC-1099",
+    "component": "orders",
+    "component_name": "Orders Service",
+    "impact": "moderate",
+    "duration_minutes": 31,
+    "fault_type": "latency",
+    "title": "Orders Service degraded response times",
+    "occurred_at": 1777438430.384717
+  },
+  {
+    "id": "INC-1100",
+    "component": "payments",
+    "component_name": "Payments Service",
+    "impact": "moderate",
+    "duration_minutes": 21,
+    "fault_type": "latency",
+    "title": "Payments Service elevated latency spike",
+    "occurred_at": 1768641622.6407626
+  },
+  {
+    "id": "INC-1101",
+    "component": "cache",
+    "component_name": "Session Cache",
+    "impact": "major",
+    "duration_minutes": 122,
+    "fault_type": "memory",
+    "title": "Session Cache out-of-memory kill",
+    "occurred_at": 1790507711.2145514
+  },
+  {
+    "id": "INC-1102",
+    "component": "db",
+    "component_name": "Database",
+    "impact": "minor",
+    "duration_minutes": 12,
+    "fault_type": "memory",
+    "title": "Database out-of-memory kill",
+    "occurred_at": 1783526758.7687962
+  },
+  {
+    "id": "INC-1103",
+    "component": "gateway",
+    "component_name": "API Gateway",
+    "impact": "moderate",
+    "duration_minutes": 58,
+    "fault_type": "latency",
+    "title": "API Gateway elevated latency spike",
+    "occurred_at": 1774486726.604908
+  },
+  {
+    "id": "INC-1104",
+    "component": "auth",
+    "component_name": "Auth Service",
+    "impact": "major",
+    "duration_minutes": 70,
+    "fault_type": "latency",
+    "title": "Auth Service degraded response times",
+    "occurred_at": 1793022757.5138128
+  },
+  {
+    "id": "INC-1105",
+    "component": "orders",
+    "component_name": "Orders Service",
+    "impact": "moderate",
+    "duration_minutes": 29,
+    "fault_type": "memory",
+    "title": "Orders Service out-of-memory kill",
+    "occurred_at": 1765632160.6504507
+  },
+  {
+    "id": "INC-1106",
+    "component": "payments",
+    "component_name": "Payments Service",
+    "impact": "major",
+    "duration_minutes": 169,
+    "fault_type": "kill",
+    "title": "Payments Service instance crashed",
+    "occurred_at": 1790123563.8085358
+  },
+  {
+    "id": "INC-1107",
+    "component": "cache",
+    "component_name": "Session Cache",
+    "impact": "critical",
+    "duration_minutes": 360,
+    "fault_type": "memory",
+    "title": "Session Cache out-of-memory kill",
+    "occurred_at": 1765249322.459476
+  },
+  {
+    "id": "INC-1108",
+    "component": "db",
+    "component_name": "Database",
+    "impact": "major",
+    "duration_minutes": 173,
+    "fault_type": "latency",
+    "title": "Database degraded response times",
+    "occurred_at": 1790038864.4889855
+  },
+  {
+    "id": "INC-1109",
+    "component": "gateway",
+    "component_name": "API Gateway",
+    "impact": "minor",
+    "duration_minutes": 9,
+    "fault_type": "latency",
+    "title": "API Gateway degraded response times",
+    "occurred_at": 1794945227.1275525
+  },
+  {
+    "id": "INC-1110",
+    "component": "auth",
+    "component_name": "Auth Service",
+    "impact": "moderate",
+    "duration_minutes": 57,
+    "fault_type": "memory",
+    "title": "Auth Service heap exhaustion",
+    "occurred_at": 1764680935.0098689
+  },
+  {
+    "id": "INC-1111",
+    "component": "orders",
+    "component_name": "Orders Service",
+    "impact": "major",
+    "duration_minutes": 111,
+    "fault_type": "memory",
+    "title": "Orders Service heap exhaustion",
+    "occurred_at": 1772339404.1384006
+  },
+  {
+    "id": "INC-1112",
+    "component": "payments",
+    "component_name": "Payments Service",
+    "impact": "minor",
+    "duration_minutes": 7,
+    "fault_type": "memory",
+    "title": "Payments Service out-of-memory kill",
+    "occurred_at": 1769849559.7068293
+  },
+  {
+    "id": "INC-1113",
+    "component": "cache",
+    "component_name": "Session Cache",
+    "impact": "minor",
+    "duration_minutes": 14,
+    "fault_type": "latency",
+    "title": "Session Cache slow responses under load",
+    "occurred_at": 1789571513.9657087
+  },
+  {
+    "id": "INC-1114",
+    "component": "db",
+    "component_name": "Database",
+    "impact": "minor",
+    "duration_minutes": 13,
+    "fault_type": "latency",
+    "title": "Database degraded response times",
+    "occurred_at": 1771341131.9989488
+  },
+  {
+    "id": "INC-1115",
+    "component": "gateway",
+    "component_name": "API Gateway",
+    "impact": "moderate",
+    "duration_minutes": 32,
+    "fault_type": "kill",
+    "title": "API Gateway process exited unexpectedly",
+    "occurred_at": 1768458956.0119188
+  },
+  {
+    "id": "INC-1116",
+    "component": "auth",
+    "component_name": "Auth Service",
+    "impact": "minor",
+    "duration_minutes": 13,
+    "fault_type": "latency",
+    "title": "Auth Service degraded response times",
+    "occurred_at": 1785507247.2241733
+  },
+  {
+    "id": "INC-1117",
+    "component": "orders",
+    "component_name": "Orders Service",
+    "impact": "critical",
+    "duration_minutes": 428,
+    "fault_type": "latency",
+    "title": "Orders Service slow responses under load",
+    "occurred_at": 1765422546.8008497
+  },
+  {
+    "id": "INC-1118",
+    "component": "payments",
+    "component_name": "Payments Service",
+    "impact": "major",
+    "duration_minutes": 70,
+    "fault_type": "latency",
+    "title": "Payments Service elevated latency spike",
+    "occurred_at": 1786996372.1389353
+  },
+  {
+    "id": "INC-1119",
+    "component": "cache",
+    "component_name": "Session Cache",
+    "impact": "minor",
+    "duration_minutes": 14,
+    "fault_type": "kill",
+    "title": "Session Cache process exited unexpectedly",
+    "occurred_at": 1793739721.3349907
+  },
+  {
+    "id": "INC-1120",
+    "component": "db",
+    "component_name": "Database",
+    "impact": "major",
+    "duration_minutes": 146,
+    "fault_type": "kill",
+    "title": "Database process exited unexpectedly",
+    "occurred_at": 1780549976.0939472
+  },
+  {
+    "id": "INC-1121",
+    "component": "gateway",
+    "component_name": "API Gateway",
+    "impact": "major",
+    "duration_minutes": 89,
+    "fault_type": "memory",
+    "title": "API Gateway memory pressure",
+    "occurred_at": 1777785173.3471448
+  },
+  {
+    "id": "INC-1122",
+    "component": "auth",
+    "component_name": "Auth Service",
+    "impact": "major",
+    "duration_minutes": 171,
+    "fault_type": "memory",
+    "title": "Auth Service out-of-memory kill",
+    "occurred_at": 1792086451.5788448
+  },
+  {
+    "id": "INC-1123",
+    "component": "orders",
+    "component_name": "Orders Service",
+    "impact": "critical",
+    "duration_minutes": 196,
+    "fault_type": "kill",
+    "title": "Orders Service process exited unexpectedly",
+    "occurred_at": 1786675428.0948546
+  },
+  {
+    "id": "INC-1124",
+    "component": "payments",
+    "component_name": "Payments Service",
+    "impact": "minor",
+    "duration_minutes": 9,
+    "fault_type": "kill",
+    "title": "Payments Service instance crashed",
+    "occurred_at": 1777706042.5943677
+  },
+  {
+    "id": "INC-1125",
+    "component": "cache",
+    "component_name": "Session Cache",
+    "impact": "moderate",
+    "duration_minutes": 58,
+    "fault_type": "kill",
+    "title": "Session Cache pod terminated by node pressure",
+    "occurred_at": 1786003688.095417
+  },
+  {
+    "id": "INC-1126",
+    "component": "db",
+    "component_name": "Database",
+    "impact": "moderate",
+    "duration_minutes": 20,
+    "fault_type": "latency",
+    "title": "Database slow responses under load",
+    "occurred_at": 1794480519.7177672
+  },
+  {
+    "id": "INC-1127",
+    "component": "gateway",
+    "component_name": "API Gateway",
+    "impact": "minor",
+    "duration_minutes": 6,
+    "fault_type": "latency",
+    "title": "API Gateway degraded response times",
+    "occurred_at": 1766858097.8808773
+  },
+  {
+    "id": "INC-1128",
+    "component": "auth",
+    "component_name": "Auth Service",
+    "impact": "moderate",
+    "duration_minutes": 26,
+    "fault_type": "latency",
+    "title": "Auth Service elevated latency spike",
+    "occurred_at": 1780644321.9404173
+  },
+  {
+    "id": "INC-1129",
+    "component": "orders",
+    "component_name": "Orders Service",
+    "impact": "critical",
+    "duration_minutes": 342,
+    "fault_type": "latency",
+    "title": "Orders Service slow responses under load",
+    "occurred_at": 1790514086.7411628
+  },
+  {
+    "id": "INC-1130",
+    "component": "payments",
+    "component_name": "Payments Service",
+    "impact": "moderate",
+    "duration_minutes": 32,
+    "fault_type": "memory",
+    "title": "Payments Service memory pressure",
+    "occurred_at": 1786979036.946596
+  },
+  {
+    "id": "INC-1131",
+    "component": "cache",
+    "component_name": "Session Cache",
+    "impact": "moderate",
+    "duration_minutes": 56,
+    "fault_type": "latency",
+    "title": "Session Cache degraded response times",
+    "occurred_at": 1765840956.9588566
+  },
+  {
+    "id": "INC-1132",
+    "component": "db",
+    "component_name": "Database",
+    "impact": "minor",
+    "duration_minutes": 5,
+    "fault_type": "memory",
+    "title": "Database out-of-memory kill",
+    "occurred_at": 1772886215.5040677
+  },
+  {
+    "id": "INC-1133",
+    "component": "gateway",
+    "component_name": "API Gateway",
+    "impact": "moderate",
+    "duration_minutes": 35,
+    "fault_type": "latency",
+    "title": "API Gateway slow responses under load",
+    "occurred_at": 1787283690.925192
+  },
+  {
+    "id": "INC-1134",
+    "component": "auth",
+    "component_name": "Auth Service",
+    "impact": "critical",
+    "duration_minutes": 187,
+    "fault_type": "latency",
+    "title": "Auth Service elevated latency spike",
+    "occurred_at": 1768135020.6061945
+  },
+  {
+    "id": "INC-1135",
+    "component": "orders",
+    "component_name": "Orders Service",
+    "impact": "moderate",
+    "duration_minutes": 56,
+    "fault_type": "latency",
+    "title": "Orders Service slow responses under load",
+    "occurred_at": 1782255245.5386858
+  },
+  {
+    "id": "INC-1136",
+    "component": "payments",
+    "component_name": "Payments Service",
+    "impact": "moderate",
+    "duration_minutes": 55,
+    "fault_type": "latency",
+    "title": "Payments Service elevated latency spike",
+    "occurred_at": 1772217079.854847
+  },
+  {
+    "id": "INC-1137",
+    "component": "cache",
+    "component_name": "Session Cache",
+    "impact": "moderate",
+    "duration_minutes": 48,
+    "fault_type": "latency",
+    "title": "Session Cache degraded response times",
+    "occurred_at": 1774103466.8743012
+  },
+  {
+    "id": "INC-1138",
+    "component": "db",
+    "component_name": "Database",
+    "impact": "minor",
+    "duration_minutes": 11,
+    "fault_type": "kill",
+    "title": "Database pod terminated by node pressure",
+    "occurred_at": 1785077063.0762968
+  },
+  {
+    "id": "INC-1139",
+    "component": "gateway",
+    "component_name": "API Gateway",
+    "impact": "moderate",
+    "duration_minutes": 43,
+    "fault_type": "kill",
+    "title": "API Gateway instance crashed",
+    "occurred_at": 1788917893.6780875
+  },
+  {
+    "id": "INC-1140",
+    "component": "auth",
+    "component_name": "Auth Service",
+    "impact": "critical",
+    "duration_minutes": 300,
+    "fault_type": "latency",
+    "title": "Auth Service elevated latency spike",
+    "occurred_at": 1794527438.6938608
+  },
+  {
+    "id": "INC-1141",
+    "component": "orders",
+    "component_name": "Orders Service",
+    "impact": "major",
+    "duration_minutes": 72,
+    "fault_type": "latency",
+    "title": "Orders Service elevated latency spike",
+    "occurred_at": 1793779234.888799
+  },
+  {
+    "id": "INC-1142",
+    "component": "payments",
+    "component_name": "Payments Service",
+    "impact": "minor",
+    "duration_minutes": 8,
+    "fault_type": "kill",
+    "title": "Payments Service pod terminated by node pressure",
+    "occurred_at": 1772954691.920856
+  },
+  {
+    "id": "INC-1143",
+    "component": "cache",
+    "component_name": "Session Cache",
+    "impact": "moderate",
+    "duration_minutes": 31,
+    "fault_type": "kill",
+    "title": "Session Cache pod terminated by node pressure",
+    "occurred_at": 1792127271.1725788
+  },
+  {
+    "id": "INC-1144",
+    "component": "db",
+    "component_name": "Database",
+    "impact": "critical",
+    "duration_minutes": 387,
+    "fault_type": "latency",
+    "title": "Database degraded response times",
+    "occurred_at": 1766160422.3160188
+  },
+  {
+    "id": "INC-1145",
+    "component": "gateway",
+    "component_name": "API Gateway",
+    "impact": "major",
+    "duration_minutes": 62,
+    "fault_type": "latency",
+    "title": "API Gateway degraded response times",
+    "occurred_at": 1787491283.1329508
+  },
+  {
+    "id": "INC-1146",
+    "component": "auth",
+    "component_name": "Auth Service",
+    "impact": "minor",
+    "duration_minutes": 11,
+    "fault_type": "memory",
+    "title": "Auth Service memory pressure",
+    "occurred_at": 1765001667.2195435
+  },
+  {
+    "id": "INC-1147",
+    "component": "orders",
+    "component_name": "Orders Service",
+    "impact": "critical",
+    "duration_minutes": 183,
+    "fault_type": "latency",
+    "title": "Orders Service elevated latency spike",
+    "occurred_at": 1764250223.6713114
+  },
+  {
+    "id": "INC-1148",
+    "component": "payments",
+    "component_name": "Payments Service",
+    "impact": "major",
+    "duration_minutes": 155,
+    "fault_type": "kill",
+    "title": "Payments Service process exited unexpectedly",
+    "occurred_at": 1779435320.400366
+  },
+  {
+    "id": "INC-1149",
+    "component": "cache",
+    "component_name": "Session Cache",
+    "impact": "minor",
+    "duration_minutes": 14,
+    "fault_type": "latency",
+    "title": "Session Cache elevated latency spike",
+    "occurred_at": 1792630606.1682444
+  },
+  {
+    "id": "INC-1150",
+    "component": "db",
+    "component_name": "Database",
+    "impact": "minor",
+    "duration_minutes": 18,
+    "fault_type": "latency",
+    "title": "Database elevated latency spike",
+    "occurred_at": 1787128270.8813002
+  }
+]

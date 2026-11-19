@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 from db import DEFAULT_DB_PATH
@@ -38,9 +38,6 @@ class ApiSettings:
     cors_origins: tuple[str, ...] = (
         "http://localhost:5173",
         "http://127.0.0.1:5173",
-    )
-    stack_directory: Path = field(
-        default_factory=lambda: Path(__file__).resolve().parent.parent / "sample-stack"
     )
 
     @classmethod

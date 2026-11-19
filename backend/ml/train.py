@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 from collections import defaultdict
 from dataclasses import dataclass
@@ -14,6 +15,8 @@ import joblib
 import numpy as np
 import sklearn
 from sklearn.ensemble import IsolationForest
+
+LOGGER = logging.getLogger(__name__)
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = BACKEND_ROOT.parent
@@ -29,7 +32,6 @@ from ml.evaluate import (  # noqa: E402
     write_json,
 )
 from ml.features import FEATURE_NAMES, WINDOW_SECONDS, Window, build_windows  # noqa: E402
-from ml.plotting import plot_confusion_matrix  # noqa: E402
 from ml.simulate import FAULTS  # noqa: E402
 
 DEFAULT_DB = BACKEND_ROOT / "data" / "ml_dataset.db"
@@ -275,12 +277,17 @@ def train_from_database(
         },
         model_destination,
     )
-    plot_confusion_matrix(
-        test_metrics["confusion_matrix"],
-        confusion_path,
-        threshold=threshold,
-        f1=test_metrics["f1"],
-    )
+    try:
+        from ml.plotting import plot_confusion_matrix  # noqa: E402
+
+        plot_confusion_matrix(
+            test_metrics["confusion_matrix"],
+            confusion_path,
+            threshold=threshold,
+            f1=test_metrics["f1"],
+        )
+    except Exception as exc:  # matplotlib is optional; the JSON metrics still exist
+        LOGGER.warning("confusion-matrix plot skipped: %s", type(exc).__name__)
     write_json(metrics_path, payload)
     return payload
 

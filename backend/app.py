@@ -1,99 +1,98 @@
-"""ChaosPilot Phase 3 API: topology, experiments and a live WebSocket stream."""
+"""ChaosPilot API: simulator-based topology, scenarios and experiments.
+
+All chaos is now produced by the in-process simulator (``backend/sim``) instead
+of Docker. Experiments are driven by agent-built scenarios stored in SQLite.
+
+Endpoints:
+  GET    /health
+  GET    /topology
+  GET    /scenarios
+  POST   /agent/collect        (streams progress over WebSocket)
+  POST   /experiments/run      {scenario_id, fixes}
+  GET    /experiments
+  GET    /experiments/{id}
+  WS     /ws
+"""
 
 from __future__ import annotations
 
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
-from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-from agent.llm import default_client
-from agent.service import AgentService
+from agent.data_agent import DataAgent
 from api_config import ApiSettings
-from chaos.engine import ChaosEngine
 from db import ChaosDatabase
-from experiments import (
-    CollectorFactory,
-    ExperimentBusyError,
-    ExperimentRunner,
-    UnknownTargetError,
-)
-from stack import StackController
-from topology import topology
+from experiments import ExperimentBusyError, ExperimentRunner, UnknownScenarioError
+from sim.simulator import Simulator
+from sim.topology import topology
 from ws import EventHub
 
 LOGGER = logging.getLogger(__name__)
 
 MAX_HISTORY = 500
-DEFAULT_AGENT_LLM = object()
 
 
 class ExperimentRequest(BaseModel):
-    fault: Literal["kill", "latency", "memory"]
-    target: str
+    scenario_id: int = Field(..., description="Scenario stored by the data agent")
     fixes: bool = False
 
 
 class ExperimentResponse(BaseModel):
     id: int
     status: str
-    fault: str
-    target: str
+    scenario_id: int
+    fault_type: str
+    target_service: str
     fixes: bool
+
+
+class CollectRequest(BaseModel):
+    pass
 
 
 def create_app(
     settings: ApiSettings | None = None,
     *,
-    engine: ChaosEngine | None = None,
-    stack: StackController | None = None,
-    collector_factory: CollectorFactory | None = None,
-    agent: AgentService | None = None,
-    agent_llm: object | None = DEFAULT_AGENT_LLM,
+    database: ChaosDatabase | None = None,
+    runner: ExperimentRunner | None = None,
+    agent: DataAgent | None = None,
 ) -> FastAPI:
     config = settings or ApiSettings.from_env()
     hub = EventHub()
-
-    @asynccontextmanager
-    async def lifespan(application: FastAPI) -> AsyncIterator[None]:
-        database = ChaosDatabase(config.db_path)
-        llm = default_client() if agent_llm is DEFAULT_AGENT_LLM else agent_llm
-        agent_service = agent or AgentService(
-            database, hub, llm=llm, engine=engine
-        )
-        runner = ExperimentRunner(
+    database = database or ChaosDatabase(config.db_path)
+    agent_service = agent or DataAgent(database, hub=hub)
+    experiment_runner = (
+        runner
+        or ExperimentRunner(
             database,
             hub,
             settings=config,
-            engine=engine,
-            stack=stack,
-            collector_factory=collector_factory,
+            simulator=Simulator(),
             agent=agent_service,
         )
+    )
+
+    @asynccontextmanager
+    async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         application.state.database = database
-        application.state.runner = runner
+        application.state.runner = experiment_runner
         application.state.hub = hub
         application.state.agent = agent_service
-        LOGGER.info(
-            "ChaosPilot API ready (db=%s, stack=%s, baseline=%ss, fault=%ss)",
-            database.path,
-            config.host,
-            config.baseline_seconds,
-            config.fault_seconds,
-        )
+        LOGGER.info("ChaosPilot API ready (db=%s)", database.path)
         try:
             yield
         finally:
-            await runner.shutdown()
+            await experiment_runner.shutdown()
 
     application = FastAPI(
         title="ChaosPilot API",
-        description="Topology, chaos experiments and live telemetry",
-        version="0.3.0",
+        description="Simulator-based chaos experiments and live telemetry",
+        version="0.4.0",
         lifespan=lifespan,
     )
     application.add_middleware(
@@ -119,6 +118,19 @@ def create_app(
     async def get_topology() -> dict[str, object]:
         return topology()
 
+    @application.get("/scenarios")
+    async def list_scenarios(request: Request, limit: int = 100) -> dict[str, object]:
+        database: ChaosDatabase = request.app.state.database
+        capped = max(1, min(limit, MAX_HISTORY))
+        scenarios = database.list_scenarios(limit=capped)
+        return {"scenarios": scenarios, "count": len(scenarios)}
+
+    @application.post("/agent/collect")
+    async def agent_collect(request: Request) -> dict[str, object]:
+        service: DataAgent = request.app.state.agent
+        scenarios = await service.collect()
+        return {"scenarios": scenarios, "count": len(scenarios)}
+
     @application.post(
         "/experiments/run",
         status_code=202,
@@ -130,27 +142,15 @@ def create_app(
         runner: ExperimentRunner = request.app.state.runner
         try:
             return await runner.start(
-                fault=payload.fault,
-                target=payload.target,
+                scenario_id=payload.scenario_id,
                 fixes=payload.fixes,
             )
-        except UnknownTargetError as exc:
+        except UnknownScenarioError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         except ExperimentBusyError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
-
-    @application.get("/agent/status")
-    async def agent_status(request: Request) -> dict[str, object]:
-        service: AgentService = request.app.state.agent
-        return service.status()
-
-    @application.post("/agent/plan")
-    async def agent_plan(request: Request) -> dict[str, object]:
-        service: AgentService = request.app.state.agent
-        plan = await service.plan()
-        return plan.model_dump()
 
     @application.get("/experiments")
     async def list_experiments(

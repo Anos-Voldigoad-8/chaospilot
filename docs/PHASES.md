@@ -3,11 +3,15 @@
 Every phase must **run and pass its exit criteria before the next one starts**.
 This is a repository rule (see `AGENTS.md`).
 
+ChaosPilot is now Docker-free: the microservices are an in-process, deterministic
+simulator under `backend/sim/`, and scenarios are built from real-world data by
+the backend data agent.
+
 ## Phase 0 — Structure, docs, secrets safety
 
 **Deliverables**
 
-- Monorepo folders: `sample-stack/`, `backend/`, `frontend/`, `docs/`.
+- Monorepo folders: `backend/`, `frontend/`, `docs/`, `scripts/`.
 - `AGENTS.md`, `README.md`, `.gitignore`, `.env.example`.
 - gitleaks pre-commit hook (official hook + local guard).
 - Git initialised with the Phase 0 commit.
@@ -27,84 +31,111 @@ pre-commit run --all-files
 git grep -nE "(api[_-]?key|secret|token|password)\s*[:=]\s*['\"][A-Za-z0-9]{20,}" || true
 ```
 
-## Phase 1 — Sample stack and telemetry collector
+## Phase 1 — In-process simulator
 
 **Deliverables**
 
-- Gateway plus five FastAPI services (auth, orders, cache, payments, db),
-  each with `/health` (p50 of the last 20 requests), `/metrics`,
-  `/_chaos/latency`, `/_chaos/memory` and `/_chaos/reset`.
-- HTTP dependency graph: gateway → auth/orders, auth → cache,
-  orders → payments/db, payments → db.
-- Fragile default profile (one attempt, 5 s timeout, no circuit breaker) and
-  `RESILIENT=true` (one retry, 1 s timeout, circuit breaker + fallback).
-- Docker Compose wiring, health checks and dependency URLs.
-- Backend collector: polling loop, SQLite persistence, simulation fallback.
-- `/api/services`, `/api/metrics`, `/api/overview`.
+- Six simulated services: gateway, auth, orders, payments, cache, db with the
+  dependency graph gateway→auth/orders, auth→cache, orders→payments/db,
+  payments→db.
+- Each service: baseline latency, error rate, load capacity.
+- Faults: kill (service down), latency (added ms), memory (degrading capacity).
+- `fixes` (resilient) flag simulates retry, timeout, circuit breaker; blast
+  radius contained to one hop.
+- Deterministic per-second metrics (`latency_ms`, `error_rate`, `up`) given a
+  seed; a fault on one service raises latency/errors upstream.
 
 **Exit criteria**
 
-- [ ] `docker compose config` is valid.
-- [ ] `docker compose up --build` shows 6 healthy services.
-- [ ] `curl http://localhost:8000/checkout` returns a created order.
-- [ ] Collector writes one row per service per interval.
-- [ ] Overview endpoint returns services and series.
+- [ ] `pytest` simulator tests pass: fault on payments raises orders and
+  gateway latency; fixes reduce blast radius.
+- [ ] Same seed always reproduces identical metrics.
 
 **Verification**
 
 ```bash
-cd sample-stack && docker compose config
-cd backend && pytest tests/test_collector.py -q
-curl http://localhost:8000/api/overview
+cd backend && pytest tests/test_simulator.py -q
 ```
 
-## Phase 2 — ML anomaly detection
+## Phase 2 — Seed dataset + anomaly model
 
 **Deliverables**
 
-- Feature extraction, IsolationForest detector, statistical fallback.
-- Training + persistence in `backend/models/` (git-ignored).
-- Detection on every collector tick, anomaly de-duplication.
-- `/api/anomalies`, `/api/anomalies/train`, `/api/anomalies/detect`.
+- `scripts/build_seed.py` generates `backend/data/seed/`:
+  - `incidents_seed.json` — 150+ incident records (component, impact,
+    duration minutes, title).
+  - `load_seed.csv` — 2000+ hourly request-load points.
+  - `metrics_seed.csv` — 5000+ labelled healthy/fault rows from the simulator.
+- Train Isolation Forest on healthy windows only; save with joblib.
+- Write precision, recall, F1 and confusion matrix to `docs/model_metrics.json`.
+- Auto-retrain if the model file is missing at startup.
 
 **Exit criteria**
 
-- [ ] Detector trains on ≥30 samples per service.
-- [ ] An injected latency/error fault produces an anomaly within two ticks.
-- [ ] Model artifact is not tracked by git.
-- [ ] Detector unit tests pass.
+- [ ] `scripts/build_seed.py` runs offline and produces the three seed files.
+- [ ] `docs/model_metrics.json` has real numbers (precision/recall/F1).
+- [ ] `pytest tests/test_ml_train.py` passes.
 
-## Phase 3 — Chaos engine
+**Verification**
+
+```bash
+python scripts/build_seed.py
+cd backend && pytest tests/test_ml_train.py -q
+python -c "import json; m=json.load(open('docs/model_metrics.json')); print(m['test']['f1'])"
+```
+
+## Phase 3 — Data agent (internet → scenarios)
 
 **Deliverables**
 
-- Fault types: latency, error, crash, cpu, memory, network.
-- Docker SDK engine with idempotent apply/recover.
-- Simulation engine for Docker-less environments.
-- Fault lifecycle (`active` → `recovered`/`expired`) and API.
+- `backend/agent/data_agent.py` collects from keyless public APIs:
+  - Statuspage incident feeds (`/api/v2/incidents.json`).
+  - GitHub public events (traffic load signal).
+  - Open-Meteo hourly forecast (weather load signal).
+- LLM picks sources and parameters, validated with pydantic; seeded random
+  picker after two LLM failures.
+- httpx with 10s timeout, 3 retries + backoff, User-Agent header.
+- Raw responses cached in `backend/data/cache/`; fallback chain live → cache →
+  seed; never crashes on network problems.
+- Converts raw data into scenarios (fault type, target service, duration,
+  severity, load curve); persists scenarios + fetch log to SQLite.
 
 **Exit criteria**
 
-- [ ] Injected fault is visible in metrics within two collector ticks.
-- [ ] Recovery restores the baseline within two ticks.
-- [ ] Docker-unavailable path degrades to simulation with a warning.
-- [ ] Chaos tests pass without a live Docker daemon.
+- [ ] `pytest tests/test_agent_data.py` passes (mapper, scenario conversion,
+  fallback chain with network down).
+- [ ] With internet on, at least one scenario is marked `live`.
+- [ ] With internet off, `POST /agent/collect` still yields scenarios.
 
-## Phase 4 — LLM incident agent
+**Verification**
+
+```bash
+cd backend && pytest tests/test_agent_data.py -q
+```
+
+## Phase 4 — Simulator experiments
 
 **Deliverables**
 
-- Ollama + OpenAI-compatible clients, all backend-only.
-- Grounded prompt with metrics, anomalies, faults and dependencies.
-- Strict JSON parsing, deterministic fallback, incident persistence.
-- `/api/agent/status`, `/api/agent/diagnose`, `/api/incidents`.
+- `POST /agent/collect` runs the data agent, streams progress over WebSocket.
+- `GET /scenarios` lists scenarios (title, source, target, severity).
+- `POST /experiments/run {scenario_id, fixes}` — an experiment can **only**
+  run a scenario stored by the agent; no hardcoded/manual fault selection.
+- Simulator drives the experiment; resilience score, anomaly score, postmortem
+  that uses the real incident title and source.
 
 **Exit criteria**
 
-- [ ] With Ollama running, diagnosis returns a valid report.
-- [ ] With LLM disabled, fallback report is still returned and stored.
-- [ ] No key appears in any response, log or frontend bundle.
-- [ ] Agent tests pass offline.
+- [ ] `pytest tests/test_sim_api.py` passes (collect, scenario-only runs,
+  unknown scenario rejected).
+- [ ] Fixes reduce blast radius (higher resilience score).
+- [ ] Postmortem references the scenario title and source.
+
+**Verification**
+
+```bash
+cd backend && pytest tests/test_sim_api.py -q
+```
 
 ## Phase 5 — Frontend dashboard
 
@@ -112,65 +143,38 @@ curl http://localhost:8000/api/overview
 
 - React + Vite + TypeScript + Tailwind HUD shell.
 - React Flow service map with health colouring and failure propagation.
-- Animated resilience gauge, Recharts p95/error stream.
-- Fault injection panel with run history.
-- Auto-scrolling agent console and typed postmortem.
-- `?mock=1` scripted replay so the UI works without a backend.
+- Recharts live metrics and anomaly stream.
+- `COLLECT DATA` button showing live agent log lines and source used
+  (live/cached/seed).
+- Scenario list with title, source, target, severity and a "Data source" badge
+  (LIVE / CACHED / SEED) plus the real source URL.
+- `RUN` button for a chosen scenario; `Apply fixes` toggle.
+- Postmortem panel, anomaly score, resilience score, compare panel.
+- Loading, empty and backend-unreachable states; `?mock=1` still works.
 
 **Exit criteria**
 
-- [x] `npm run build` succeeds.
-- [x] Dashboard renders simulated data (mock feed).
-- [ ] Fault injection round-trip works against the live backend and Docker.
-- [ ] Bundle contains no secret (`npm run build` + grep).
+- [ ] `npm run build` passes (TypeScript strict + Vite).
+- [ ] No fault/target pickers remain; only scenario selection.
+- [ ] Data-source badge shown per scenario with the source URL.
+
+**Verification**
+
+```bash
+cd frontend && npm run build
+```
 
 ## Phase 6 — End-to-end demo
 
 **Deliverables**
 
-- Demo script: detect → inject fault → anomaly → diagnose → recover.
-- Screenshots/GIF and a reproducible walkthrough.
-- Final documentation pass.
+- `run_demo.sh` and `run_demo.ps1`: one command installs dependencies, builds
+  seed data + model if missing, starts backend + frontend.
+- Demo works with zero internet (seed data + model committed).
+- With internet, at least one scenario marked `live`.
 
 **Exit criteria**
 
-- [ ] One command (or documented sequence) reproduces the demo.
-- [ ] Every earlier phase's checks still pass.
-- [ ] `pre-commit run --all-files` is clean.
-
-## Phase 7 — End-to-end integration and polish
-
-**Deliverables**
-
-- Dashboard RUN posts `/experiments/run`; AGENT MODE posts `/agent/plan`.
-- `/ws` streams `state`, `log`, `metrics`, `anomaly`, `score` and `postmortem`.
-- Resilience score: `100 - 15/failed - 6/degraded + 10` when fixes are on and
-  the blast radius stayed contained, with the breakdown included in the event.
-- Compare panel with the last fixes-off and fixes-on scores.
-- Loading, empty and backend-unreachable states across the UI.
-- One-command start scripts: `run_demo.sh` and `run_demo.ps1`.
-
-**Exit criteria**
-
-- [ ] Backend tests, Ruff and pre-commit pass.
-- [ ] `npm run build` passes.
-- [x] The scripted `?mock=1` feed emits the same event shapes.
-- [ ] `./run_demo.sh` or `.\run_demo.ps1` starts a clean clone end to end.
+- [ ] `./run_demo.sh` (or `.\run_demo.ps1`) starts a clean clone end to end.
+- [ ] Backend tests, frontend build, pre-commit all pass.
 - [ ] `git status` never lists `.env`.
-
-## Phase 8 — Documentation pack
-
-**Deliverables**
-
-- `README.md`: summary, demo placeholder, Mermaid architecture, tech stack,
-  three-command run, experiment flow, model metrics, limitations and future work.
-- `docs/ARCHITECTURE.md`: Mermaid component, data-flow and sequence diagrams.
-- `docs/REPORT_NOTES.md`: module-by-module summaries with file paths.
-- `docs/screenshots/`: capture instructions for the dashboard GIF.
-
-**Exit criteria**
-
-- [x] Every number in the docs is read from the repository.
-- [x] `pre-commit run --all-files` passes.
-- [x] `git status` does not list `.env`.
-- [x] `v1.0` tag pushed.

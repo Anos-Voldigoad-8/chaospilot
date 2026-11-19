@@ -1,17 +1,22 @@
 # ChaosPilot
 
-**An AI agent that breaks a microservice stack on purpose, notices when it
-misbehaves, and explains why — with fix suggestions grounded in the telemetry it
+**An AI agent that turns real-world incidents into chaos scenarios, runs them
+in a deterministic in-process simulator, detects the anomaly with an Isolation
+Forest, and explains why — with fix suggestions grounded in the telemetry it
 collected.**
 
-ChaosPilot is a self-contained chaos-engineering lab: a small Docker Compose
-stack, a 1-second telemetry collector, an Isolation Forest anomaly detector, a
-FastAPI backend that runs experiments and an LLM agent that plans experiments
-and writes postmortems. A React HUD streams the whole run live over WebSocket.
+ChaosPilot is a self-contained chaos-engineering lab: a backend data agent that
+pulls real outage and traffic data from keyless public APIs, an in-process
+simulator of six microservices, an Isolation Forest anomaly detector, a FastAPI
+backend that runs experiments and an LLM agent that writes postmortems. A React
+HUD streams the whole run live over WebSocket.
 
 ```text
-inject a fault  ->  collect telemetry  ->  detect the anomaly  ->  explain + suggest fixes
+internet data  ->  data agent  ->  scenarios  ->  simulator  ->  anomaly model  ->  UI
 ```
+
+There is **no Docker** — the microservices are simulated in-process, so the lab
+runs on a laptop with zero infrastructure.
 
 ## Demo
 
@@ -23,55 +28,65 @@ inject a fault  ->  collect telemetry  ->  detect the anomaly  ->  explain + sug
 > ```
 >
 > See [`docs/screenshots/README.md`](docs/screenshots/README.md) for a suggested
-> capture sequence. Until then, the dashboard can be explored without Docker or
-> a backend at `http://localhost:5173/?mock=1`.
+> capture sequence. Until then, the dashboard can be explored without a backend
+> at `http://localhost:5173/?mock=1`.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
     subgraph Dashboard["Dashboard — React + Vite (:5173)"]
-        UI["Service map · live charts<br/>agent console · postmortem · compare"]
+        UI["Service map · live charts<br/>collect · scenarios · run · postmortem · compare"]
     end
 
     subgraph API["ChaosPilot API — FastAPI (:8090)"]
-        Runner["Experiment runner"]
-        Collector["Collector<br/>1 s probes"]
-        Chaos["Chaos engine"]
-        Detector["Anomaly detector"]
+        Runner["Simulator experiment runner"]
+        DataAgent["Data agent<br/>public data → scenarios"]
         Agent["LLM agent<br/>planner + postmortem"]
+        Detector["Anomaly detector<br/>Isolation Forest"]
         Hub["WebSocket hub"]
-        DB[("SQLite<br/>experiments · samples · runs")]
+        DB[("SQLite<br/>experiments · samples ·<br/>scenarios · fetch_log")]
     end
 
-    subgraph Stack["Sample stack — Docker Compose"]
-        Gateway["gateway :8000"]
-        Auth["auth :8001"]
-        Orders["orders :8002"]
-        Cache["cache :8003"]
-        Payments["payments :8004"]
-        Db["db :8005"]
-        Gateway --> Auth
-        Gateway --> Orders
-        Auth --> Cache
-        Orders --> Payments
-        Orders --> Db
-        Payments --> Db
+    subgraph Sim["In-process simulator<br/>six services, deterministic"]
+        G["gateway"]:::svc
+        A["auth"]:::svc
+        O["orders"]:::svc
+        P["payments"]:::svc
+        C["cache"]:::svc
+        D["db"]:::svc
+        G --> A
+        G --> O
+        A --> C
+        O --> P
+        O --> D
+        P --> D
+    end
+
+    subgraph External["Keyless public APIs<br/>(no key required)"]
+        SP["Statuspage incident feeds"]
+        GH["GitHub public events"]
+        WM["Open-Meteo weather"]
     end
 
     LLM["Ollama (default)<br/>or OpenAI-compatible"]
 
-    UI -->|REST: run / plan / history| Runner
-    Runner -->|inject + recover| Chaos
-    Chaos -->|HTTP /_chaos · Docker SDK| Stack
-    Collector -->|/health + /checkout| Stack
-    Collector --> DB
+    UI -->|REST: collect / run / history| DataAgent
+    DataAgent -->|fetch| SP
+    DataAgent -->|fetch| GH
+    DataAgent -->|fetch| WM
+    DataAgent --> DB
+    UI -->|REST: run scenario| Runner
+    Runner -->|per-second samples| Sim
+    Sim --> DB
     DB --> Detector
-    DB --> Agent
-    Agent --> LLM
-    Runner --> Hub
     Detector --> Runner
+    Runner --> Hub
+    Agent --> LLM
+    Agent --> DB
     Hub -->|WebSocket: state, log,<br/>metrics, anomaly, score, postmortem| UI
+
+    classDef svc fill:#050810,stroke:#20e7de,stroke-width:1px,color:#e7feff;
 ```
 
 The full component/data-flow documentation lives in
@@ -83,26 +98,28 @@ The full component/data-flow documentation lives in
 | --- | --- |
 | Backend API | FastAPI, Uvicorn, Pydantic v2 |
 | Persistence | SQLite (stdlib `sqlite3`, WAL mode) |
+| Simulator | in-process Python (`backend/sim`), deterministic with a seed |
+| Chaos faults | `kill`, `latency`, `memory` (simulated; no Docker) |
 | Anomaly detection | scikit-learn `IsolationForest`, NumPy, joblib |
-| Chaos / containers | Docker SDK for Python, Docker Compose v2 |
-| LLM | Ollama by default; any OpenAI-compatible API |
+| Data collection | httpx (10s timeout, 3 retries + backoff, User-Agent) |
+| LLM | Ollama by default; any OpenAI-compatible API (backend only) |
 | Frontend | React 18, Vite 6, TypeScript 5.7 |
 | Styling | Tailwind CSS 3.4 |
 | Topology graph | `@xyflow/react` (React Flow) 12 |
 | Charts | Recharts 2.15 |
 | Client state | Zustand 5 |
 | Tooling | pytest, Ruff, pre-commit, gitleaks |
-| Runtime | Python 3.11, Node.js 18+ (Node 24 tested) |
+| Runtime | Python 3.11+, Node.js 20+ |
 
 ## Run it in 3 commands
 
-Requirements: Docker with Compose v2, Python 3.11 and Node.js 18+.
+Requirements: Python 3.11+ and Node.js 20+. **No Docker required.**
 
 ```bash
 # 1. Clone
 git clone https://github.com/Anos-Voldigoad-8/chaospilot.git && cd chaospilot
 
-# 2. Start everything: stack + API + dashboard
+# 2. Start everything: API + dashboard (builds seed data + model if missing)
 ./run_demo.sh          # Windows: powershell -ExecutionPolicy Bypass -File .\run_demo.ps1
 
 # 3. Open the dashboard
@@ -110,44 +127,48 @@ open http://localhost:5173    # Linux: xdg-open, Windows: Start-Process http://l
 ```
 
 `run_demo.sh` / `run_demo.ps1` create `.env` from `.env.example` when it is
-missing, install backend and frontend dependencies, start the six-service sample
-stack, wait for health, then launch the API on `127.0.0.1:8090` and the
-dashboard on `localhost:5173`.
+missing, install backend and frontend dependencies, build the committed seed
+dataset and train the anomaly model if they are absent, then launch the API on
+`127.0.0.1:8090` and the dashboard on `localhost:5173`. The app works with zero
+internet because the seed data and model are committed.
 
-No Docker? Start the backend and frontend manually and use the scripted feed:
+Manual setup:
 
 ```bash
-cd backend && uvicorn app:app --reload --port 8090   # terminal 1
-cd frontend && npm install && npm run dev            # terminal 2
-# then open http://localhost:5173/?mock=1
+# backend (terminal 1)
+cd backend && python -m venv .venv && .venv/Scripts/python -m pip install -r requirements.txt
+python scripts/build_seed.py          # builds seed data + trains the model (offline)
+.venv/Scripts/python -m uvicorn app:app --reload --port 8090
+
+# frontend (terminal 2)
+cd frontend && npm install && npm run dev
+# then open http://localhost:5173
 ```
 
-Manual setup, configuration and troubleshooting are in
-[`docs/OPERATIONS.md`](docs/OPERATIONS.md).
+Or try the scripted feed without a backend: `http://localhost:5173/?mock=1`
 
-## How a chaos experiment works
+## How it works
 
-1. **Request.** The dashboard posts `{"fault", "target", "fixes"}` to
-   `POST /experiments/run`, or `POST /agent/plan` lets the agent choose the
-   experiment itself. Only one experiment can run at a time.
-2. **Optional fixes.** With `fixes: true`, the stack is recreated through
-   `docker compose up` with `RESILIENT=true` (1 retry, 1 s timeout, circuit
-   breaker and fallback responses) before the baseline starts.
-3. **Baseline (10 s).** The collector probes `/health` on all six services and
-   performs a synthetic `/checkout` through the gateway once per second. The
-   median latency per service becomes the baseline.
-4. **Fault (20 s).** The chaos engine injects `latency` or `memory` through the
-   target's `/_chaos/*` endpoints, or `kill` through the Docker SDK. Labels mark
-   the samples that belong to the fault window.
-5. **Live scoring.** Every tick emits `state`, `metrics`, `anomaly` and `score`
-   events. The anomaly score comes from the Phase 5 Isolation Forest when the
-   model artifact exists, with a baseline-ratio heuristic as fallback.
-6. **Recovery (10 s).** Faults are reset, containers restored and the recovery
-   window is collected.
-7. **Report.** The final score uses the worst status each service reached during
-   the fault window. The agent receives topology, status timeline, anomaly
-   scores and phase statistics, then streams a `postmortem` (`llm` or
-   `template`) and the run is stored in SQLite.
+1. **Collect data.** The dashboard clicks **COLLECT DATA**, which calls
+   `POST /agent/collect`. The backend data agent fetches real outage and
+   traffic from keyless public APIs (Statuspage incident feeds, GitHub public
+   events, Open-Meteo weather), converts them into **scenarios** and persists
+   them to SQLite. Progress streams over WebSocket. If the network is down it
+   falls back to cached responses, then to the committed seed dataset — the app
+   never crashes and `/scenarios` is never empty.
+2. **Choose a scenario.** `GET /scenarios` returns each scenario with its title,
+   source, target service, severity, a **Data source** badge (LIVE / CACHED /
+   SEED) and the real source URL. The dashboard lets the operator pick one.
+3. **Run.** `POST /experiments/run {scenario_id, fixes}` runs **only** an
+   agent-stored scenario — there is no hardcoded or manual fault selection.
+   The simulator replays baseline → fault → recovery for all six services, and
+   a fault on one service raises latency/errors upstream.
+4. **Resilience.** With `fixes` (resilient) on, retry, timeout and circuit
+   breaker contain the blast radius to one hop, earning a containment bonus.
+5. **Detect + explain.** The Isolation Forest scores anomaly windows; a
+   postmortem generator uses the real incident title and source to explain the
+   failure and suggest fixes. The run is stored in SQLite with its score and
+   phases.
 
 Resilience score:
 
@@ -160,86 +181,61 @@ score = 100
 
 `bad` means a service was down or a request errored; `warn` means latency was
 more than 3x its baseline median; everything else is `ok`. Containment means no
-service outside the target's blast radius (the target plus its transitive
-callers) failed or degraded.
+service outside the target's one-hop blast radius failed or degraded.
 
 ## ML model
 
-The detector is an **Isolation Forest** trained only on healthy windows. Every
-number below is read from [`docs/model_metrics.json`](docs/model_metrics.json).
+The detector is an **Isolation Forest** trained only on healthy windows from
+`metrics_seed.csv`. Every number below is read from
+[`docs/model_metrics.json`](docs/model_metrics.json):
 
-| Item | Value |
+| Metric | Test value |
 | --- | --- |
-| Model | `IsolationForest` (scikit-learn 1.9.1) |
-| Parameters | `n_estimators=200`, `contamination=0.02`, `random_state=42` |
-| Dataset | 6,480 samples from 24 experiments, `source: simulated` |
-| Windows | 5,604 total; train 2,634 / validation 1,362 / test 1,368 |
-| Feature vector | 10 features: 5 service + 5 aggregated dependency features |
-| Calibration | center `0.0`, scale `0.05221` |
-| Decision threshold | `0.5719` (chosen on validation F1) |
+| Precision | 0.9412 |
+| Recall | 0.6809 |
+| F1 | 0.7901 |
+| Trained windows | 4,574 |
 
-Held-out test results:
+Confusion matrix (normal / fault): TN 1,768, FP 4, FN 30, TP 64.
 
-| Metric | Validation | Test |
-| --- | --- | --- |
-| Precision | 0.9560 | 0.9774 |
-| Recall | 0.9667 | 0.9611 |
-| F1 | 0.9613 | 0.9692 |
-| Accuracy | 0.9897 | 0.9920 |
-| Specificity | 0.9932 | 0.9966 |
+If the model file (`backend/models/isolation_forest.joblib`) is missing at
+startup, the backend retrains it automatically.
 
-Test confusion matrix (`normal` / `fault`): TN 1,184, FP 4, FN 7, TP 173.
-
-Per-fault test recall: `kill` 1.0000 (54/54), `latency` 0.9444 (68/72),
-`memory` 0.9444 (51/54).
-
-Features per 5-second window: `latency_mean`, `latency_max`, `error_rate`,
-`up_ratio`, `latency_slope`, plus aggregated dependency `dep_latency_mean`,
-`dep_latency_max`, `dep_error_rate`, `dep_up_ratio`, `dep_latency_slope`.
-
-Regenerate the dataset and retrain from `backend/`:
+Regenerate the dataset and retrain:
 
 ```bash
-python -m ml.scripts.generate_dataset --source auto
-python -m ml.train
+python scripts/build_seed.py
 ```
 
-Artifacts: [`docs/model_metrics.json`](docs/model_metrics.json),
-[`docs/confusion_matrix.png`](docs/confusion_matrix.png) and the git-ignored
-model at `backend/models/isolation_forest.joblib`. The pipeline is documented in
-[`backend/ml/README.md`](backend/ml/README.md).
+Artifacts: [`docs/model_metrics.json`](docs/model_metrics.json) and the
+git-ignored model at `backend/models/isolation_forest.joblib`. The pipeline is
+documented in [`backend/ml/README.md`](backend/ml/README.md).
 
 ## Limitations
 
-- **It is a lab, not a production chaos platform.** Six toy FastAPI services
-  with in-memory state, one host, one SQLite file.
-- **The published model was trained on simulated telemetry.** The metrics file
-  says `source: simulated`; regenerate with `--source stack` before trusting
-  absolute scores.
+- **It is a lab, not a production chaos platform.** Six simulated services with
+  deterministic telemetry, one host, one SQLite file.
+- **The published model was trained on simulated telemetry.** Regenerate with
+  `python scripts/build_seed.py` before trusting absolute scores.
 - **The point estimates are optimistic.** Adjacent one-second windows overlap,
   so validation and test windows are not fully independent.
-- **The stack exposes limited signals.** Only health and checkout
-  latency/error are collected — no error classes, restart counts or container
-  resource pressure.
-- **`kill` needs Docker.** Latency and memory faults are applied over HTTP and
-  still work without a Docker daemon.
-- **The LLM is optional.** If Ollama or the hosted provider is unreachable, the
-  deterministic template still produces a postmortem.
+- **No Docker.** All faults are simulated in-process; the simulator is
+  deterministic given a seed.
+- **The LLM is optional.** If Ollama or the hosted provider is unreachable,
+  source-picking falls back to a seeded random choice and the postmortem falls
+  back to a template.
 - **No authentication.** The API and dashboard are intended for local use only.
 - **One experiment at a time.** A second request returns `409` while a run is
   active.
 
 ## Future work
 
-- Re-generate the dataset and evaluate the model on the real Compose stack.
-- Evaluate on non-overlapping windows and report confidence intervals.
-- Add richer telemetry: container CPU/memory, restart counts, structured logs.
-- Add faults beyond `kill` / `latency` / `memory` (error injection, CPU
-  pressure, network partitions).
+- Re-generate the dataset and evaluate on non-overlapping windows with confidence
+  intervals.
+- Add richer simulated telemetry: restart counts, structured logs, CPU pressure.
 - Persist trends across runs and compare more than one fixes-off/fixes-on pair.
-- Add CI for pytest, Ruff, `npm run build` and gitleaks; publish signed images.
-- Harden the API with authentication and move beyond a single-process SQLite
-  writer if the lab grows.
+- Add CI for pytest, Ruff, `npm run build` and gitleaks.
+- Harden the API with authentication if the lab grows.
 
 ## Documentation
 
@@ -262,9 +258,10 @@ model at `backend/models/isolation_forest.joblib`. The pipeline is documented in
 >    with `python-dotenv` and `pydantic-settings`. There are no hardcoded keys.
 > 3. The frontend only receives non-secret `VITE_*` values. **LLM API keys
 >    never enter the browser**; every LLM call is made by the backend.
-> 4. `docker-compose.yml` uses `env_file` / `${VAR}` references only.
-> 5. A **gitleaks** pre-commit hook blocks commits containing secrets. Install
+> 4. A **gitleaks** pre-commit hook blocks commits containing secrets. Install
 >    it once with `pre-commit install`. Do not use `git commit --no-verify`.
+> 5. No Docker Compose or sample-stack credentials exist in this repository;
+>    chaos faults are simulated in-process.
 
 Verify `.env` is ignored:
 

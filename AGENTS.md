@@ -8,10 +8,10 @@ Guidance for AI agents and humans working in this repository.
 stack. It closes the loop between *breaking things on purpose* and *explaining
 what happened*:
 
-1. **Inject faults** into a running Docker Compose stack (latency, errors,
-   crashes, resource pressure, network partitions).
-2. **Collect telemetry** continuously from every service (health, latency,
-   error rate, CPU, memory).
+1. **Collect real-world data** from keyless public APIs (statuspage incident
+   feeds, GitHub events, Open-Meteo weather) via a backend data agent.
+2. **Simulate faults in-process** (latency, kill, memory) across six services
+   (gateway, auth, orders, payments, cache, db) with a deterministic simulator.
 3. **Detect anomalies** with an ML model (Isolation Forest, with a statistical
    fallback) instead of fixed thresholds alone.
 4. **Explain failures and fixes** using an LLM agent that receives the anomaly
@@ -19,8 +19,9 @@ what happened*:
 5. **Show everything** in a React dashboard: service topology, live charts,
    anomaly feed and the agent's incident report.
 
-The system is a *lab*, not a production chaos platform. The sample stack is
-deliberately small enough to run on a laptop and to make demo failures obvious.
+The system is a *lab*, not a production chaos platform. There is **no Docker**:
+the microservices are an in-process simulator under `backend/sim/`, deterministic
+when given a seed.
 
 ## 2. Repository structure
 
@@ -29,34 +30,29 @@ chaospilot/
 ├── AGENTS.md                  # This file: goal, rules, conventions
 ├── README.md                  # Overview, quickstart, security notice
 ├── .env.example               # Placeholder-only environment template
+├── .env                       # Local secrets (gitignored, never committed)
 ├── .gitignore                 # Secrets, caches, models, node_modules
 ├── .pre-commit-config.yaml    # gitleaks + local secret guard
 ├── .gitleaks.toml             # Secret scanning configuration
 ├── scripts/
+│   ├── build_seed.py          # Builds offline seed dataset + trains the model
 │   └── check_secrets.py       # Fast staged-file secret guard
-├── sample-stack/              # Docker Compose demo system (gateway + 5 services)
-│   ├── docker-compose.yml
-│   ├── README.md
-│   └── services/
-│       ├── gateway/           # public entry point: GET /checkout
-│       ├── auth/              # GET /verify -> cache
-│       ├── orders/            # POST /create -> payments, db
-│       ├── cache/             # in-memory session cache
-│       ├── payments/          # POST /charge -> db
-│       └── db/                # in-memory records
 ├── backend/                   # FastAPI application (all server-side logic)
-│   ├── app.py                 # Phase 3 API: topology, experiments, /ws
-│   ├── api_config.py          # Env-driven Phase 3 settings
-│   ├── chaos/                 # Phase 2 fault engine (Docker + HTTP)
-│   ├── collector.py           # 1s telemetry collector
-│   ├── db.py                  # experiments + samples (SQLite)
-│   ├── experiments.py         # background experiment runner
+│   ├── app.py                 # API: topology, scenarios, experiments, /ws
+│   ├── api_config.py          # Env-driven settings
+│   ├── collector.py           # telemetry collector helpers
+│   ├── db.py                  # experiments, samples, scenarios, fetch_log
+│   ├── experiments.py         # background simulator experiment runner
 │   ├── runtime.py             # status, score, postmortem helpers
-│   ├── stack.py               # resilient stack restarts
-│   ├── topology.py            # sample-stack graph
+│   ├── stack.py               # (kept for reference; no Docker used)
+│   ├── topology.py            # simulator service graph
 │   ├── ws.py                  # WebSocket fan-out
 │   ├── scripts/               # smoke test + WebSocket client
-│   ├── core/                  # earlier scaffold: ML, LLM agent, API routes
+│   ├── sim/                   # in-process chaos simulator (topology, service, simulator)
+│   ├── agent/                 # LLM agent + data agent (data_agent.py)
+│   ├── ml/                    # Isolation Forest training, detector, features
+│   ├── data/seed/             # committed offline seed dataset (incidents, load, metrics)
+│   ├── models/                # trained Isolation Forest (gitignored, built by build_seed.py)
 │   ├── tests/                 # pytest suite (no live secrets required)
 │   ├── requirements.txt
 │   └── pyproject.toml
@@ -69,6 +65,8 @@ chaospilot/
 │   ├── package.json
 │   ├── vite.config.ts
 │   └── tailwind.config.js
+├── run_demo.sh                # One-command demo (Linux/macOS)
+├── run_demo.ps1               # One-command demo (Windows)
 └── docs/                      # Architecture, phases, API, security, ops
 ```
 
@@ -76,8 +74,8 @@ chaospilot/
 
 ### Language and code style
 
-- **Python 3.11** for all backend and sample-stack code. Do not use syntax or
-  libraries that require a newer runtime.
+- **Python 3.11** for all backend code. Do not use syntax or libraries that
+  require a newer runtime.
 - **Type hints everywhere** in Python (`from __future__ import annotations` at
   the top of modules). Public functions need typed parameters and returns.
 - **Small files, single responsibility.** Prefer modules under ~250 lines and
@@ -90,15 +88,13 @@ chaospilot/
 - **Never commit secrets.** No API keys, tokens, passwords, private keys,
   connection strings with credentials, or real `.env` files.
 - All backend secrets/config are read from environment variables through
-  `python-dotenv` + `pydantic-settings` (`backend/core/config.py`) and the Phase 3
-  API settings (`backend/api_config.py`). Never read secrets with hardcoded
+  `python-dotenv` + `pydantic-settings` (`backend/core/config.py`) and the API
+  settings (`backend/api_config.py`). Never read secrets with hardcoded
   fallbacks.
 - The frontend may only read `import.meta.env.VITE_*` values that are **public
   and non-secret**. Never put an API key in the frontend or in a `VITE_*` var.
 - **All LLM calls happen in the backend.** The browser talks only to the
   backend API.
-- `docker-compose.yml` uses `env_file: ../.env` and `${VAR}` references only —
-  never literal credentials.
 - Tests and docs use obvious placeholders (`your-api-key-here`, `<TOKEN>`).
 - Every commit is scanned by **gitleaks** through the pre-commit framework.
   Do not bypass hooks with `--no-verify`.
@@ -107,10 +103,8 @@ chaospilot/
 
 - **Every phase must run before moving on.** A phase is done only when its
   checks pass locally (backend tests, lint/type checks where applicable,
-  frontend build, compose config validation). Never start Phase *N+1* with a
-  broken Phase *N*.
-- Commit small and often, one logical change per commit. Use the phase name in
-  the subject (e.g. `Phase 2: anomaly detector`).
+  frontend build). Never start the next step with a broken step.
+- Commit small and often, one logical change per commit.
 - New behaviour needs a test. Bug fixes need a regression test.
 - Do not add a dependency without a reason documented in the PR/commit.
 - Never rewrite `main` history or force-push to `main`.
@@ -121,26 +115,28 @@ chaospilot/
 | --- | --- |
 | Backend API | FastAPI, Uvicorn, Pydantic v2 |
 | Persistence | SQLite (WAL mode, standard library `sqlite3`) |
-| ML | scikit-learn (Isolation Forest), NumPy |
-| Chaos / Docker | Docker SDK for Python |
+| ML | scikit-learn (Isolation Forest), NumPy, joblib |
+| Simulator | in-process Python (`backend/sim`), deterministic with a seed |
+| Chaos faults | kill, latency, memory (simulated; no Docker) |
 | LLM | Ollama (default, local) or any OpenAI-compatible API |
+| Data agent | httpx (10s timeout, 3 retries, backoff, User-Agent) |
 | Frontend | React 18, Vite, TypeScript |
 | Styling | Tailwind CSS |
 | Topology graph | React Flow (`@xyflow/react`) |
 | Charts | Recharts |
 | Tooling | pytest, Ruff, pre-commit, gitleaks |
 
-## 5. Phase plan
+## 5. Phase plan (updated for the Docker-free flow)
 
 | Phase | Scope | Exit criteria |
 | --- | --- | --- |
 | 0 | Structure, docs, secrets safety, git | `.env` ignored, hooks installed, first commit |
-| 1 | Sample stack + collector | 6 services healthy, metrics persisted |
-| 2 | Anomaly detection | model trains, detects injected faults |
-| 3 | Chaos engine | inject/recover latency, error, crash |
-| 4 | LLM agent | grounded diagnosis + fix suggestions |
-| 5 | Frontend | topology, charts, incident reports live |
-| 6 | End-to-end demo | one command reproduces a full incident |
+| 1 | In-process simulator | six services, fault propagation, deterministic |
+| 2 | Seed dataset + anomaly model | build_seed.py produces 150+ incidents, 2000+ load points, 5000+ metric rows; model trains |
+| 3 | Data agent | collects from keyless APIs, cache/seed fallback, never crashes |
+| 4 | Simulator experiments | run agent-built scenarios, resilience score, postmortem |
+| 5 | Frontend | collect button, scenario list, run button, live dashboard |
+| 6 | End-to-end demo | run_demo.sh starts everything with one command |
 
 Full details: [`docs/PHASES.md`](docs/PHASES.md).
 
@@ -155,16 +151,18 @@ pip install -r requirements.txt
 uvicorn app:app --reload --port 8090
 pytest -q
 
+# Build the offline seed dataset and train the anomaly model (zero internet)
+python scripts/build_seed.py
+
 # Frontend
 cd frontend
 npm install
 npm run dev
 npm run build
 
-# Sample stack (requires Docker)
-cd sample-stack
-docker compose config
-docker compose up --build
+# One-command demo (no Docker)
+./run_demo.sh        # Linux/macOS
+.\run_demo.ps1       # Windows
 
 # Secrets safety
 pre-commit install

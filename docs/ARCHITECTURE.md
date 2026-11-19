@@ -1,8 +1,12 @@
 # Architecture
 
 ChaosPilot is four cooperating subsystems around one SQLite database. All
-privileged work (Docker, ML, LLM) happens in the backend; the browser is a
-read-mostly dashboard with explicit run and plan actions.
+privileged work (ML, LLM, network fetches) happens in the backend; the browser
+is a read-mostly dashboard. There is **no Docker**: the microservices are an
+in-process, deterministic simulator under `backend/sim/`.
+
+Data flows: **internet data → data agent → scenarios → simulator → anomaly
+model → UI**.
 
 ## 1. Components
 
@@ -14,93 +18,110 @@ flowchart TB
 
     subgraph Backend["ChaosPilot API — FastAPI (:8090)"]
         App["app.py<br/>REST + WebSocket"]
-        Runner["experiments.py<br/>ExperimentRunner"]
-        Collector["collector.py<br/>1 s probe loop"]
-        Runtime["runtime.py<br/>status + score + postmortem"]
-        DB[("db.py<br/>SQLite")]
+        Runner["experiments.py<br/>simulator ExperimentRunner"]
+        Sim["sim/<br/>simulator (topology, service, simulator)"]
+        Db["db.py<br/>SQLite: experiments, samples,<br/>scenarios, fetch_log"]
         Hub["ws.py<br/>EventHub"]
-        Chaos["chaos/engine.py<br/>HTTP + Docker faults"]
-        Detector["ml/detector.py<br/>Isolation Forest"]
+        Detector["ml/detector.py<br/>Isolation Forest (joblib)"]
+        DataAgent["agent/data_agent.py<br/>keyless public data → scenarios"]
         Agent["agent/service.py<br/>planner + postmortem"]
-        Topo["topology.py · service_map.py"]
-        StackCtl["stack.py<br/>compose restarts"]
+        Topo["sim/topology.py<br/>service graph"]
+        Train["scripts/build_seed.py<br/>seed dataset + model training"]
     end
 
-    subgraph SampleStack["Sample stack — Docker Compose"]
-        Gateway["gateway :8000"]
-        Auth["auth :8001"]
-        Orders["orders :8002"]
-        Cache["cache :8003"]
-        Payments["payments :8004"]
-        Db["db :8005"]
-        Gateway --> Auth
-        Gateway --> Orders
-        Auth --> Cache
-        Orders --> Payments
-        Orders --> Db
-        Payments --> Db
+    subgraph External["Keyless public APIs (no key)"]
+        Status["Statuspage incident feeds<br/>githubstatus · cloudflarestatus"]
+        GH["GitHub public events<br/>api.github.com/events"]
+        Weather["Open-Meteo hourly forecast<br/>api.open-meteo.com"]
+        LLM["Ollama / OpenAI-compatible<br/>(backend only)"]
     end
 
-    subgraph External["External services"]
-        LLM["Ollama / OpenAI-compatible"]
-        Docker["Docker daemon<br/>compose project chaospilot"]
+    subgraph Seed["Committed offline data<br/>backend/data/seed/"]
+        Inc["incidents_seed.json (150+)"]
+        Load["load_seed.csv (2000+ hourly)"]
+        Metrics["metrics_seed.csv (5000+ labelled rows)"]
     end
 
     Dashboard -->|REST| App
     Hub -->|WebSocket| Dashboard
     App --> Runner
+    App --> DataAgent
     App --> Agent
     App --> Topo
-    Runner --> Collector
-    Runner --> Chaos
-    Runner --> StackCtl
+    Runner --> Sim
     Runner --> Runtime
     Runner --> Detector
-    Runner --> DB
+    Runner --> Db
     Runner --> Hub
     Runner --> Agent
-    Collector --> DB
-    Collector -->|/health + /checkout| SampleStack
-    Agent --> DB
+    DataAgent -->|fetch| Status
+    DataAgent -->|fetch| GH
+    DataAgent -->|fetch| Weather
+    DataAgent -->|fallback| Seed
+    DataAgent --> Db
+    Train -->|writes| Seed
+    Train -->|writes| Models[("backend/models/<br/>isolation_forest.joblib")]
+    Train -->|writes| Docs[("docs/model_metrics.json")]
+    Detector -->|loads| Models
+    Agent --> Db
     Agent --> Detector
     Agent --> LLM
     Agent --> Hub
-    Chaos -->|HTTP /_chaos| SampleStack
-    Chaos -->|SDK| Docker
-    StackCtl -->|docker compose up| Docker
-    Docker --> Gateway
+    Sim -->|per-second samples| Db
 ```
 
 ## 2. Data flow
 
-The live experiment path is a single loop: the collector writes samples, the
-runner turns them into events, the agent turns the stored evidence into a
-report.
+### Phase A — Collect real-world data (POST /agent/collect)
 
-```mermaid
-flowchart LR
-    Request["POST /experiments/run<br/>or POST /agent/plan"] --> Runner
-    Runner -->|"fixes=true"| Restart["Recreate stack with<br/>RESILIENT=true"]
-    Restart --> Baseline
-    Runner --> Baseline["Baseline 10 s"]
-    Baseline -->|"median latency per service"| Fault
-    Baseline -->|"sampled every 1 s"| Samples[("samples")]
-    Fault["Fault 20 s<br/>kill · latency · memory"] -->|"worst status per service"| LiveScore["Live score"]
-    Fault -->|"5 s windows"| Windows["Feature windows"]
-    Windows --> Detector["Anomaly detector"]
-    Detector -->|"anomaly 0-1"| LiveScore
-    LiveScore -->|"score event"| Hub["WebSocket hub"]
-    Fault --> Recovery["Recovery 10 s"]
-    Recovery --> Report["Final score from<br/>fault-window statuses"]
-    Report --> Context["Agent context:<br/>topology · timeline · anomalies · phases"]
-    Context --> LLM["LLM (optional)"]
-    Context --> Template["Deterministic template"]
-    LLM --> Postmortem["postmortem event"]
-    Template --> Postmortem
-    Postmortem --> Hub
-    Report --> Store[("experiment_runs")]
-    Hub --> Dashboard["Dashboard"]
-```
+The data agent fetches real outage and traffic data from keyless public APIs:
+
+* Statuspage incident feeds (`/api/v2/incidents.json` on githubstatus.com,
+  cloudflarestatus.com and similar) → real outage records.
+* GitHub public events → real traffic-shaped activity (replacement for the now
+  dead Wikimedia pageviews API).
+* Open-Meteo hourly forecast → a second load signal (weather).
+
+The LLM (Ollama or the configured API) picks which sources to query, validated
+with pydantic. If the LLM fails twice, a seeded random picker is used. Every
+raw response is cached in `backend/data/cache/`; on failure the agent falls back
+to cache, then to the committed seed dataset. The agent logs which source it
+used (`live`, `cached` or `seed`). Each source is converted into one or more
+**scenarios**: a fault type, target service (keyword-mapped from the real
+incident's component name to one of the six simulated services), duration,
+severity and a normalized load curve. Scenarios and a fetch log are persisted
+to SQLite (`scenarios` table, `fetch_log` table).
+
+### Phase B — Run a simulator experiment (POST /experiments/run)
+
+An experiment can **only** run a scenario stored by the agent. The runner:
+
+1. Reads the scenario (fault type, target service, duration, load curve).
+2. Runs the in-process simulator: baseline → fault → recovery, producing
+   per-second telemetry (`up`, `latency_ms`, `error_rate`) for all six
+   services. Deterministic given a seed.
+3. A fault on one service raises latency/errors for itself and every caller
+   upstream (gateway→auth/orders, auth→cache, orders→payments/db,
+   payments→db).
+4. The `fixes` (resilient) flag simulates retry, timeout and circuit breaker,
+   containing the blast radius to one hop.
+
+Samples are written to SQLite and broadcast over WebSocket as `state`,
+`metrics`, `anomaly` and `score` events.
+
+### Phase C — Detect anomalies
+
+The Isolation Forest (trained on healthy windows only from `metrics_seed.csv`)
+scores 5-second feature windows. The model is saved with joblib and
+`docs/model_metrics.json` records precision, recall, F1 and the confusion
+matrix. If the model file is missing at startup, it retrains automatically. A
+statistical fallback keeps scoring if the model is unavailable.
+
+### Phase D — Explain (postmortem)
+
+The postmortem generator uses the real incident title and source from the
+scenario, plus anomaly context, recent metrics and the fault timeline, to
+produce a grounded diagnosis and fix suggestions (LLM or deterministic template).
 
 ## 3. Experiment sequence
 
@@ -109,90 +130,65 @@ sequenceDiagram
     autonumber
     participant D as Dashboard
     participant A as FastAPI
+    participant DA as DataAgent
     participant R as ExperimentRunner
-    participant S as StackController
-    participant C as Collector
-    participant X as Chaos engine
-    participant P as Sample stack
+    participant S as Simulator
     participant DB as SQLite
     participant H as EventHub
+    participant Det as Detector
     participant G as Agent
 
-    D->>A: POST /experiments/run {fault,target,fixes}
-    A->>R: start(...)
-    R-->>H: log "experiment started"
+    D->>A: POST /agent/collect
+    A->>DA: collect()
+    DA-->>Status/GH/Weather: keyless fetch (retries + cache)
+    DA-->>Seed: cache / seed fallback
+    DA-->>DB: scenarios + fetch_log
+    DA-->>A: scenarios ({live, cached, seed})
+    A-->>D: scenario list + data-source badges
 
-    opt fixes = true
-        R->>S: restart(resilient=true)
-        S->>P: docker compose up -d --force-recreate
-        S-->>R: healthy
-    end
+    D->>A: POST /experiments/run {scenario_id, fixes}
+    A->>R: start(scenario_id, fixes)
+    R->>DB: read scenario
+    R->>S: run(plan)
+    S-->>R: per-second samples (baseline, fault, recovery)
+    R->>DB: insert samples
+    R->>H: state / metrics / anomaly / score (WebSocket)
+    H-->>D: live dashboard updates
 
-    R->>C: start(label_resolver, on_samples)
-    loop every 1 s for 10 s baseline
-        C->>P: GET /health, POST /checkout
-        C->>DB: insert samples
-        C->>R: on_samples(...)
-        R->>H: state, metrics, anomaly, score
-    end
-    R->>DB: baseline median per service
-
-    R->>X: inject fault
-    X->>P: /_chaos/latency, /_chaos/memory or Docker kill
-    loop every 1 s for 20 s fault
-        C->>P: probes
-        C->>DB: insert labelled samples
-        C->>R: on_samples(...)
-        R->>H: state, metrics, anomaly, score
-    end
-
-    R->>X: reset_all / restore
-    loop every 1 s for 10 s recovery
-        C->>P: probes
-        C->>R: on_samples(...)
-        R->>H: state, metrics, anomaly, score
-    end
-
-    R->>DB: samples_between(fault_started, fault_ended)
-    R->>R: worst status per service -> resilience breakdown
-    R->>G: finish(run)
-    G->>DB: topology + timeline + anomalies + phases
-    opt LLM configured and reachable
-        G->>G: planner/postmortem prompt -> JSON
-    end
-    G-->>R: Postmortem (source: llm or template)
+    R->>DB: fault-window statuses
+    R->>Det: score windows (Isolation Forest or heuristic)
+    Det-->>R: anomaly 0-1 per service
+    R->>G: finish(run) → postmortem (real title + source)
     R->>DB: update experiment_runs(score, postmortem)
     R->>H: score + postmortem
-    H-->>D: WebSocket frames
+    H-->>D: final score and report
 ```
 
 ## 4. Backend modules
 
 | Module | Responsibility |
 | --- | --- |
-| `backend/app.py` | FastAPI app: `/health`, `/topology`, `/experiments`, `/agent`, `/ws`, CORS, lifespan |
-| `backend/api_config.py` | Env-driven settings: DB path, phase lengths, latency, memory, CORS |
-| `backend/topology.py` | Static six-service graph and dependency edges |
-| `backend/service_map.py` | Canonical service names and host ports 8000-8005 |
-| `backend/stack.py` | Compose restarts with `RESILIENT=true|false`, health waits |
-| `backend/experiments.py` | Background run lifecycle, live events, final score |
-| `backend/collector.py` | 1 s probing of every service plus a gateway checkout |
-| `backend/db.py` | SQLite schema and queries for experiments, samples and runs |
+| `backend/app.py` | FastAPI app: `/health`, `/topology`, `/scenarios`, `/agent/collect`, `/experiments/run`, `/experiments`, `/ws` |
+| `backend/api_config.py` | Env-driven settings: DB path, phase lengths, CORS |
+| `backend/sim/topology.py` | Six-service dependency graph (gateway→auth/orders→payments/db, etc.) |
+| `backend/sim/service.py` | Per-service baseline sampling and fault application (kill/latency/memory) |
+| `backend/sim/simulator.py` | Deterministic experiment: baseline → fault → recovery; resilient one-hop containment |
+| `backend/db.py` | SQLite schema: experiments, samples, scenarios, fetch_log |
+| `backend/experiments.py` | Background run lifecycle, live events, resilience score, postmortem |
 | `backend/runtime.py` | Status derivation, resilience formula, phase stats, postmortem text |
 | `backend/ws.py` | WebSocket fan-out with stale-client cleanup |
-| `backend/chaos/engine.py` | HTTP `/_chaos` faults plus Docker `kill`/`restore` |
-| `backend/ml/*` | Feature windows, dataset generation, training, evaluation, detector |
-| `backend/agent/*` | Tools, planner, postmortem writer, LLM plumbing, context builder |
+| `backend/agent/data_agent.py` | Collects keyless public data → scenarios; cache/seed fallback |
+| `backend/agent/*` | Planner, postmortem writer, LLM plumbing |
+| `backend/ml/*` | Feature windows, Isolation Forest training, evaluation, detector |
+| `scripts/build_seed.py` | Builds committed seed dataset + trains model → `docs/model_metrics.json` |
 
-The earlier `backend/core/` scaffold is still imported for typed settings
-(`core/config.py`) and the shared LLM client (`core/agent/llm.py`). Its API
-routers are **not** mounted by `backend/app.py`; the served API is the Phase 7
-app.
+The earlier `backend/core/` scaffold and `backend/chaos/` (Docker) engine are
+no longer used by the served API.
 
 ## 5. Data model
 
 ```sql
-experiments(id, fault, target, started, ended, fixes_on)
+experiments(id, fault_type, target_service, started, ended, fixes_on)
 
 samples(id, experiment_id, ts, service, up, latency_ms, error, label)
 -- label = 1 inside the fault window, 0 otherwise
@@ -202,24 +198,28 @@ experiment_runs(
     baseline_end, fault_started, fault_ended, recovery_end,
     score, postmortem, error
 )
+
+scenarios(
+    id, fault_type, target_service, duration_minutes, severity,
+    load_curve, source, source_url, data_source, title, created_at
+)
+
+fetch_log(id, url, status, rows, timestamp)
 ```
 
 `samples` is append-only. Timestamps are Unix seconds (UTC). SQLite runs in WAL
-mode; one experiment writes at a time, so writes stay small and serialised.
+mode; one experiment writes at a time.
 
 ## 6. Event contract
 
 | Event | Payload |
 | --- | --- |
 | `state` | `service`, `status` (`ok`/`warn`/`bad`), `latency_ms` |
-| `log` | `level`, `text` (experiment, agent steps, errors) |
+| `log` | `level`, `text` (collection, experiment, agent steps, errors) |
 | `metrics` | `gateway_latency`, `error_rate` |
 | `anomaly` | `value` (0-1), `services` map |
 | `score` | `value`, `failed[]`, `degraded[]`, `contained`, `bonus` |
 | `postmortem` | `text`, `source` (`llm`/`template`), `structured` |
-
-A `state` event is sent for each service every tick, followed by one `metrics`,
-one `anomaly` and one `score`. The run ends with `score` and `postmortem`.
 
 ## 7. Scoring and status rules
 
@@ -233,22 +233,22 @@ one `anomaly` and one `score`. The run ends with `score` and `postmortem`.
 score = 100 - 15 * failed - 6 * degraded + (10 if fixes and contained else 0)
 ```
 
-Containment means every service outside `affected_services(target)` — the
-target plus its transitive callers — stayed `ok`. The value is clamped to
-0-100. The final score uses the worst status each service reached during the
-fault window; the live score is frozen the same way so recovery cannot raise it.
+With `fixes=true` (resilient), the blast radius is contained to one hop — only
+the target and its direct callers can fail or degrade — so services outside
+that radius stay `ok` and earn the containment bonus.
 
 ## 8. Failure modes and design choices
 
-- **Docker unavailable**: latency and memory faults still work over HTTP; `kill`
-  reports a clear engine error.
-- **Model artifact missing**: the runner falls back to a baseline-ratio anomaly
-  score; the API keeps streaming.
-- **LLM unavailable**: the planner falls back to a rule (`latency` on the
-  service with the most callers) and the postmortem falls back to a template.
-- **Not enough telemetry**: status derivation and the heuristic anomaly score
-  handle empty windows without raising.
+- **No Docker**: faults are simulated in-process; the simulator is deterministic
+  given a seed.
+- **Network down**: `/agent/collect` falls back to cached responses, then the
+  committed seed dataset; the app never crashes and `/scenarios` is never empty.
+- **LLM unavailable**: source picking falls back to a seeded random picker;
+  postmortem falls back to a template.
+- **Model artifact missing**: the runner falls back to a heuristic anomaly
+  score and retrains the model automatically at startup.
 - **Public repository**: env-only configuration, gitleaks plus a local guard,
-  and a backend-only LLM boundary are architectural requirements.
-- **Frontend offline**: the dashboard keeps the bundled topology, shows a
-  backend-unreachable banner and reconnects with exponential backoff.
+  and a backend-only LLM boundary are architectural requirements. No secrets in
+  code or the frontend.
+- **Frontend offline**: the dashboard shows a backend-unreachable banner and
+  supports `?mock=1` for a scripted demo without a server.

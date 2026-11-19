@@ -14,6 +14,7 @@ Two tables back the Phase 2 loop:
 
 from __future__ import annotations
 
+import json
 import sqlite3
 import time
 from collections.abc import Iterable, Iterator
@@ -60,6 +61,28 @@ CREATE TABLE IF NOT EXISTS experiment_runs (
     score         REAL,
     postmortem    TEXT,
     error         TEXT
+);
+
+CREATE TABLE IF NOT EXISTS scenarios (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    fault_type    TEXT    NOT NULL,
+    target_service TEXT   NOT NULL,
+    duration_minutes REAL NOT NULL,
+    severity      TEXT    NOT NULL,
+    load_curve    TEXT    NOT NULL DEFAULT '[]',
+    source        TEXT    NOT NULL,
+    source_url    TEXT    NOT NULL,
+    data_source   TEXT    NOT NULL,
+    title         TEXT    NOT NULL,
+    created_at    REAL    NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS fetch_log (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    url        TEXT    NOT NULL,
+    status     TEXT    NOT NULL,
+    rows       INTEGER NOT NULL DEFAULT 0,
+    timestamp  REAL    NOT NULL
 );
 """
 
@@ -296,6 +319,93 @@ class ChaosDatabase:
                 (experiment_id, limit),
             ).fetchall()
         return [dict(row) for row in rows]
+
+    # ------------------------------------------------------------------
+    # Scenarios (agent-built) and fetch log
+    # ------------------------------------------------------------------
+    def insert_scenario(
+        self,
+        *,
+        fault_type: str,
+        target_service: str,
+        duration_minutes: float,
+        severity: str,
+        load_curve: list[dict[str, Any]],
+        source: str,
+        source_url: str,
+        data_source: str,
+        title: str,
+        created_at: float | None = None,
+    ) -> int:
+        with self.connect() as connection:
+            cursor = connection.execute(
+                "INSERT INTO scenarios "
+                "(fault_type, target_service, duration_minutes, severity, load_curve, "
+                " source, source_url, data_source, title, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    fault_type,
+                    target_service,
+                    duration_minutes,
+                    severity,
+                    json.dumps(load_curve),
+                    source,
+                    source_url,
+                    data_source,
+                    title,
+                    time.time() if created_at is None else created_at,
+                ),
+            )
+        return int(cursor.lastrowid)
+
+    def list_scenarios(self, limit: int = 100) -> list[dict[str, Any]]:
+        with self.connect() as connection:
+            rows = connection.execute(
+                "SELECT id, fault_type, target_service, duration_minutes, severity, "
+                "load_curve, source, source_url, data_source, title, created_at "
+                "FROM scenarios ORDER BY id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        results = []
+        for row in rows:
+            data = dict(row)
+            try:
+                data["load_curve"] = json.loads(data.get("load_curve") or "[]")
+            except (ValueError, TypeError):
+                data["load_curve"] = []
+            results.append(data)
+        return results
+
+    def get_scenario(self, scenario_id: int) -> dict[str, Any] | None:
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT id, fault_type, target_service, duration_minutes, severity, "
+                "load_curve, source, source_url, data_source, title, created_at "
+                "FROM scenarios WHERE id = ?",
+                (scenario_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        data = dict(row)
+        try:
+            data["load_curve"] = json.loads(data.get("load_curve") or "[]")
+        except (ValueError, TypeError):
+            data["load_curve"] = []
+        return data
+
+    def insert_fetch_log(
+        self,
+        *,
+        url: str,
+        status: str,
+        rows: int = 0,
+        timestamp: float | None = None,
+    ) -> None:
+        with self.connect() as connection:
+            connection.execute(
+                "INSERT INTO fetch_log (url, status, rows, timestamp) VALUES (?, ?, ?, ?)",
+                (url, status, int(rows), time.time() if timestamp is None else timestamp),
+            )
 
 
 RUN_SELECT = """

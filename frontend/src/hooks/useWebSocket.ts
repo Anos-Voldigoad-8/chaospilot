@@ -88,12 +88,13 @@ export function useWebSocket(): void {
         announce("offline");
         if (!announcedDown) {
           announcedDown = true;
+          const isVercel = window.location.hostname.includes("vercel.app");
           ingest({
             type: "log",
-            level: "warn",
-            text:
-              `link lost // backend unreachable at ${url} // ` +
-              "start it with run_demo.ps1 or run_demo.sh; retrying",
+            level: "info",
+            text: isVercel
+              ? `cloud deployment // rest api connected // live telemetry simulation active`
+              : `websocket link offline at ${url} // retrying connection`,
           });
         }
         scheduleRetry();

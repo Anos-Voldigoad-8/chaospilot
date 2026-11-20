@@ -18,7 +18,11 @@ const CONNECTION_META: Record<
 
 function ConnectionBadge() {
   const connection = useChaosStore((state) => state.connection);
-  const meta = CONNECTION_META[connection];
+  const backendDown = useChaosStore((state) => state.backendDown);
+  let meta = CONNECTION_META[connection];
+  if (connection === "offline" && !backendDown) {
+    meta = { label: "CLOUD ACTIVE", color: "#6366F1", detail: "REST CONNECTED" };
+  }
 
   return (
     <div className="flex items-center gap-2 border border-white/10 bg-[#2B303B] px-2.5 py-1.5 shadow-hud">
@@ -211,7 +215,7 @@ export function TopBar() {
 
       {backendDown && !mockMode ? (
         <div className="border-t border-signal-red/50 bg-signal-redLight px-3 py-1.5 text-center font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-signal-red">
-          BACKEND DISCONNECTED // RECONNECTING TO FASTAPI (:8090)
+          BACKEND DISCONNECTED // RECONNECTING TO FASTAPI
         </div>
       ) : null}
     </header>

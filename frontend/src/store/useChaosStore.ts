@@ -251,8 +251,6 @@ export const useChaosStore = create<ChaosState>((set, get) => ({
   setConnection: (connection) =>
     set((state) => ({
       connection,
-      backendDown:
-        connection === "offline" ? true : connection === "connecting" ? state.backendDown : false,
       lastError:
         connection === "live" && state.backendDown ? null : state.lastError,
     })),
@@ -459,13 +457,27 @@ export const useChaosStore = create<ChaosState>((set, get) => ({
 
     try {
       const run = await api.runExperiment({ scenario_id: scenarioId, fixes: applyFixes });
-      set({ activeExperimentId: run.id, backendDown: false, faultActive: true });
+      set({ activeExperimentId: run.id, backendDown: false, faultActive: true, running: true });
       get().ingest({
         type: "log",
         level: "success",
         text: `experiment #${run.id} accepted // streaming telemetry`,
       });
       void get().refreshExperiments();
+
+      if (get().connection !== "live") {
+        mockHandle?.stop();
+        mockHandle = startMockExperiment({
+          fault: (scenario?.fault_type as FaultKind) ?? "latency",
+          target: scenario?.target_service ?? "payments",
+          fixes: applyFixes,
+          emit: (event) => get().ingest(event),
+          onFinished: () => {
+            mockHandle = null;
+            void get().refreshExperiments();
+          },
+        });
+      }
     } catch (error) {
       const message = errorMessage(error, "backend rejected the experiment");
       set({

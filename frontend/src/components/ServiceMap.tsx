@@ -121,6 +121,7 @@ export function ServiceMap() {
   const selectedScenarioId = useChaosStore((state) => state.selectedScenarioId);
   const scenarios = useChaosStore((state) => state.scenarios);
   const connection = useChaosStore((state) => state.connection);
+  const backendDown = useChaosStore((state) => state.backendDown);
   const mockMode = useChaosStore((state) => state.mockMode);
 
   const targetService = selectedScenarioId != null
@@ -310,9 +311,9 @@ export function ServiceMap() {
           </div>
         )}
 
-        {connection === "offline" && !mockMode ? (
+        {(connection === "offline" || backendDown) && !mockMode ? (
           <div className="pointer-events-none absolute inset-x-3 top-3 z-20 mx-auto w-fit max-w-full border border-signal-red bg-signal-redLight px-3 py-1.5 text-center font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-signal-red shadow-metal">
-            LINK OFFLINE — RETRYING · APPEND <span className="underline">?mock=1</span> FOR SCRIPTED DEMO
+            BACKEND OFFLINE — RETRYING CONNECTION
           </div>
         ) : null}
       </div>

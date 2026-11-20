@@ -627,10 +627,10 @@ export const useChaosStore = create<ChaosState>((set, get) => ({
 
     try {
       await api.health();
-      set({ backendDown: false, lastError: null });
+      set({ backendDown: false, connection: "live", lastError: null });
     } catch (error) {
       const message = errorMessage(error, "backend unreachable");
-      set({ backendDown: true, lastError: message });
+      set({ backendDown: true, connection: "offline", lastError: message });
       get().ingest({
         type: "log",
         level: "warn",

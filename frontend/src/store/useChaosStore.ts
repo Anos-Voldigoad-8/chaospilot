@@ -192,6 +192,7 @@ interface ChaosState {
   postmortemSource: "llm" | "template" | null;
 
   running: boolean;
+  faultActive: boolean;
   collecting: boolean;
   activeExperimentId: number | null;
   runStartedAt: number | null;
@@ -207,6 +208,7 @@ interface ChaosState {
   selectScenario: (id: number | null) => void;
   ingest: (event: WsEvent) => void;
   runExperiment: (overrides?: { scenario_id?: number; fixes?: boolean }) => Promise<void>;
+  resolveExperiment: () => Promise<void>;
   collectData: () => Promise<void>;
   loadTopology: () => Promise<void>;
   refreshExperiments: () => Promise<void>;
@@ -234,6 +236,7 @@ export const useChaosStore = create<ChaosState>((set, get) => ({
   postmortemSource: null,
 
   running: false,
+  faultActive: false,
   collecting: false,
   activeExperimentId: null,
   runStartedAt: null,
@@ -334,6 +337,7 @@ export const useChaosStore = create<ChaosState>((set, get) => ({
       postmortem: event.text,
       postmortemSource: event.source ?? (event.structured ? "llm" : "template"),
       running: false,
+      faultActive: false,
       activeExperimentId: null,
       ...(state.applyFixes ? { compareOn: outcome } : { compareOff: outcome }),
     });
@@ -454,7 +458,7 @@ export const useChaosStore = create<ChaosState>((set, get) => ({
 
     try {
       const run = await api.runExperiment({ scenario_id: scenarioId, fixes: applyFixes });
-      set({ activeExperimentId: run.id, backendDown: false });
+      set({ activeExperimentId: run.id, backendDown: false, faultActive: true });
       get().ingest({
         type: "log",
         level: "success",
@@ -470,6 +474,30 @@ export const useChaosStore = create<ChaosState>((set, get) => ({
         backendDown: error instanceof ApiError && error.status === 0,
       });
       get().ingest({ type: "log", level: "error", text: `run failed // ${message}` });
+    }
+  },
+
+  resolveExperiment: async () => {
+    const experimentId = get().activeExperimentId;
+    if (experimentId == null) {
+      set({ lastError: "no active experiment to resolve" });
+      return;
+    }
+    set({ lastError: null });
+    try {
+      await api.resolveExperiment(experimentId);
+      get().ingest({
+        type: "log",
+        level: "info",
+        text: "fix applied // recovery phase started",
+      });
+    } catch (error) {
+      const message = errorMessage(error, "failed to apply fix");
+      set({
+        lastError: message,
+        backendDown: error instanceof ApiError && error.status === 0,
+      });
+      get().ingest({ type: "log", level: "error", text: `resolve failed // ${message}` });
     }
   },
 

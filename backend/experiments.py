@@ -39,6 +39,16 @@ LOGGER = logging.getLogger(__name__)
 
 SUPPORTED_FAULTS = {"kill", "latency", "memory"}
 
+#: Seconds the runner auto-broadcasts during baseline and fault phases before
+#: pausing for a manual fix. These are compressed so the live demo is snappy.
+AUTO_BASELINE_SECONDS = 8.0
+AUTO_FAULT_SECONDS = 20.0
+AUTO_RECOVERY_SECONDS = 5.0
+
+#: How many per-second fault samples the runner actually broadcasts per second
+#: of real time while waiting for the operator to apply a fix.
+FAULT_TICKS_PER_SECOND = 4.0
+
 
 class ExperimentBusyError(RuntimeError):
     """Raised when a run is already in progress."""
@@ -46,6 +56,10 @@ class ExperimentBusyError(RuntimeError):
 
 class UnknownScenarioError(ValueError):
     """Raised when the scenario id is not stored by the agent."""
+
+
+class UnknownExperimentError(ValueError):
+    """Raised when the experiment id does not exist."""
 
 
 class SimulatorLike(Protocol):
@@ -68,6 +82,7 @@ class RunContext:
     recovery_end: float | None = None
     baseline: dict[str, float] = field(default_factory=dict)
     recovered: bool = False
+    awaiting_fix: bool = False
 
 
 class ExperimentRunner:
@@ -172,6 +187,29 @@ class ExperimentRunner:
             with suppress(asyncio.CancelledError):
                 await task
 
+    async def resolve(self, experiment_id: int) -> dict[str, Any]:
+        """Mark the fault as fixed so the paused experiment recovers.
+
+        Called by the operator clicking "APPLY FIX & RECOVER". Sets
+        ``fault_ended`` so ``_execute`` transitions from the paused fault
+        state into recovery.
+        """
+        run = self._run
+        if run is None or run.id != experiment_id:
+            raise UnknownExperimentError(f"no active experiment #{experiment_id}")
+        if not run.awaiting_fix:
+            raise UnknownExperimentError(
+                f"experiment #{experiment_id} is not awaiting a fix"
+            )
+        run.fault_ended = time.time()
+        run.awaiting_fix = False
+        self.database.update_run(run.id, fault_ended=run.fault_ended)
+        await self.hub.log(
+            "info",
+            f"Operator applied fix to experiment #{run.id}; recovering",
+        )
+        return {"id": run.id, "status": "recovery", "fault_ended": run.fault_ended}
+
     # ------------------------------------------------------------------ #
     # Run lifecycle
     # ------------------------------------------------------------------ #
@@ -189,14 +227,13 @@ class ExperimentRunner:
             )
             self.database.update_run(run.id, status="preparing")
 
-            fault_seconds = min(float(scenario.get("duration_minutes") or 20) * 60.0, 30.0)
             plan = ExperimentPlan(
                 fault=run.fault_type,
                 target=run.target_service,
                 fixes=run.fixes,
-                baseline_seconds=8.0,
-                fault_seconds=fault_seconds,
-                recovery_seconds=8.0,
+                baseline_seconds=AUTO_BASELINE_SECONDS,
+                fault_seconds=AUTO_FAULT_SECONDS,
+                recovery_seconds=AUTO_RECOVERY_SECONDS,
                 seed=1000 + run.id,
             )
             result = await asyncio.to_thread(self.simulator.run, plan)
@@ -216,8 +253,8 @@ class ExperimentRunner:
 
             self.database.update_run(run.id, status="baseline")
             await self.hub.log("info", "Baseline: collecting normal telemetry")
-            # Broadcast baseline samples.
-            baseline_samples = [s for s in samples if s.label == 0][: 8 * 6]
+            # Broadcast baseline samples quickly.
+            baseline_samples = [s for s in samples if s.label == 0][: int(AUTO_BASELINE_SECONDS * 6)]
             await self._broadcast_samples(run, baseline_samples, fast=True)
             run.baseline_end = time.time()
             baseline_rows = self.database.samples_between(run.started, run.baseline_end)
@@ -225,21 +262,33 @@ class ExperimentRunner:
             self.database.update_run(run.id, baseline_end=run.baseline_end)
 
             run.fault_started = time.time()
+            run.awaiting_fix = True
             self.database.update_run(
                 run.id, status="fault", fault_started=run.fault_started
             )
             await self.hub.log(
                 "warn",
                 f"Fault active: {run.fault_type} on {run.target_service} "
-                f"for {fault_seconds:.0f}s",
+                f"(awaiting manual fix)",
             )
+            # Broadcast fault samples (broken state) then PAUSE awaiting the
+            # operator clicking "APPLY FIX & RECOVER". The system stays in the
+            # broken state until resolve() is called.
             fault_samples = [s for s in samples if s.label == 1]
             await self._broadcast_samples(run, fault_samples, fast=False)
-            await asyncio.sleep(0.2)
-
+            # Wait here until the operator resolves the experiment.
+            while run.awaiting_fix:
+                await asyncio.sleep(0.25)
+                if run.fault_started is not None and run.fault_ended is None:
+                    # Keep re-broadcasting the broken fault state so the
+                    # dashboard continues to show red/warn nodes and spiked
+                    # metrics while waiting for the fix.
+                    await self._broadcast_samples(run, fault_samples, fast=False)
+            # The operator clicked "APPLY FIX & RECOVER": run.fault_ended is
+            # now set by resolve() and we transition into recovery.
             run.fault_ended = time.time()
             self.database.update_run(run.id, status="recovery", fault_ended=run.fault_ended)
-            await self.hub.log("info", "Fault window closed; observing recovery")
+            await self.hub.log("info", "Fix applied; observing recovery")
             recovery_samples = [s for s in samples if s.label == 0 and s.experiment_id is not None]
             await self._broadcast_samples(run, recovery_samples, fast=True)
             run.recovery_end = time.time()
@@ -371,7 +420,7 @@ class ExperimentRunner:
                 "bonus": 0.0,
             }
         return resilience_breakdown(
-            self._fault_status or self._last_status,
+            self._last_status,
             fixes=run.fixes,
             blast_radius=affected_services(run.target_service, resilient=run.fixes),
         )

@@ -81,6 +81,13 @@ export const api = {
       `/experiments?limit=${limit}`,
     ),
   experiment: (id: number) => request<ExperimentDetail>(`/experiments/${id}`),
+  // Mark the fault of a running experiment as fixed so it transitions from the
+  // paused broken state into recovery (APPLY FIX & RECOVER).
+  resolveExperiment: (id: number) =>
+    request<{ id: number; status: string; fault_ended: number }>(
+      `/experiments/${id}/resolve`,
+      { method: "POST" },
+    ),
 };
 
 /**

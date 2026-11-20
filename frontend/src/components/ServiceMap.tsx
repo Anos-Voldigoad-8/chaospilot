@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useState, useMemo } from "react";
 import {
   Background,
   BackgroundVariant,
@@ -14,9 +14,12 @@ import {
 import { useChaosStore } from "../store/useChaosStore";
 import { formatLatency } from "../lib/stats";
 import { positionFor } from "../lib/topology";
-import { COLORS, STATUS_COLOR, STATUS_LABEL } from "../lib/theme";
+import { STATUS_COLOR, STATUS_LABEL } from "../lib/theme";
 import type { ServiceStatus } from "../types/chaos";
 import { Panel } from "./Panel";
+import { ChaosCore3D } from "./ChaosCore3D";
+import { Box, Network, Columns } from "lucide-react";
+import { audioEngine } from "../lib/audio";
 
 type ServiceNodeData = {
   label: string;
@@ -34,37 +37,40 @@ function ServiceNode({ data }: NodeProps<ServiceNodeType>) {
 
   return (
     <div className={`service-node service-node--${data.status}`}>
-      <span className="service-node__aura" aria-hidden />
       <Handle type="target" position={Position.Left} />
       <Handle type="source" position={Position.Right} />
 
-      {data.isTarget ? <span className="service-node__target">target</span> : null}
+      {data.isTarget ? <span className="service-node__target">TARGET</span> : null}
 
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="truncate font-display text-[14px] font-semibold uppercase tracking-[0.18em] text-neon-ice">
+          <div className="truncate font-display text-[14px] font-bold uppercase tracking-[0.1em] text-gunmetal-900">
             {data.label}
           </div>
-          <div className="truncate text-[8px] uppercase tracking-[0.12em] text-slate-500">
+          <div className="truncate font-mono text-[8.5px] uppercase tracking-[0.1em] text-gunmetal-500 font-semibold">
             {data.role}
           </div>
         </div>
-        <span className="service-node__dot mt-1 shrink-0" aria-hidden />
+        <span
+          className="mt-1 h-2 w-2 rounded-full shrink-0"
+          style={{ backgroundColor: color, boxShadow: `0 0 8px ${color}` }}
+          aria-hidden
+        />
       </div>
 
-      <div className="mt-2 flex items-end justify-between gap-2">
+      <div className="mt-2.5 flex items-end justify-between gap-2 font-mono border-t border-[#DDE1EA] pt-1.5">
         <span
-          className="hud-value text-[19px] font-medium leading-none"
-          style={{ color }}
+          className="text-[17px] font-bold leading-none text-gunmetal-900"
+          style={{ color: data.status === "bad" ? "#EF4444" : "#1E222B" }}
         >
           {formatLatency(data.latency)}
         </span>
         <span className="text-right leading-none">
-          <span className="block text-[8px] uppercase tracking-[0.12em] text-slate-600">
+          <span className="block text-[8px] uppercase tracking-[0.1em] text-gunmetal-500 font-semibold">
             :{data.port}
           </span>
           <span
-            className="mt-1 block text-[8px] uppercase tracking-[0.16em]"
+            className="mt-1 block text-[8px] uppercase tracking-[0.14em] font-bold"
             style={{ color }}
           >
             {STATUS_LABEL[data.status]}
@@ -88,14 +94,14 @@ function edgeStatus(
 
 function Legend() {
   return (
-    <div className="pointer-events-none absolute bottom-2 left-2 z-10 flex items-center gap-3 border border-neon-cyan/10 bg-void-950/80 px-2 py-1.5 backdrop-blur">
+    <div className="pointer-events-none absolute bottom-3 left-3 z-10 flex items-center gap-3 border border-[#DDE1EA] bg-[#F8F9FB]/95 px-2.5 py-1.5 shadow-card font-mono backdrop-blur-md">
       {(["ok", "warn", "bad"] as const).map((status) => (
         <span
           key={status}
-          className="flex items-center gap-1.5 text-[8px] uppercase tracking-[0.16em] text-slate-500"
+          className="flex items-center gap-1.5 text-[8.5px] uppercase tracking-[0.14em] font-semibold text-gunmetal-500"
         >
           <span
-            className="h-1.5 w-1.5 rounded-full"
+            className="h-2 w-2 rounded-full"
             style={{
               backgroundColor: STATUS_COLOR[status],
               boxShadow: `0 0 6px ${STATUS_COLOR[status]}`,
@@ -109,6 +115,7 @@ function Legend() {
 }
 
 export function ServiceMap() {
+  const [viewMode, setViewMode] = useState<"3d" | "2d" | "split">("3d");
   const topology = useChaosStore((state) => state.topology);
   const services = useChaosStore((state) => state.services);
   const selectedScenarioId = useChaosStore((state) => state.selectedScenarioId);
@@ -150,8 +157,7 @@ export function ServiceMap() {
           services[edge.source]?.status,
           services[edge.target]?.status,
         );
-        const color =
-          status === "ok" ? COLORS.cyanDim : STATUS_COLOR[status];
+        const strokeColor = status === "bad" ? "#EF4444" : status === "warn" ? "#F59E0B" : "#6366F1";
 
         return {
           id: edge.id,
@@ -160,81 +166,153 @@ export function ServiceMap() {
           type: "default",
           animated: status !== "ok",
           style: {
-            stroke: color,
-            strokeWidth: status === "ok" ? 1 : 1.8,
-            filter:
-              status === "bad"
-                ? "drop-shadow(0 0 4px rgba(255,61,85,0.7))"
-                : status === "warn"
-                  ? "drop-shadow(0 0 3px rgba(255,178,36,0.5))"
-                  : undefined,
+            stroke: strokeColor,
+            strokeWidth: status === "ok" ? 1.5 : 2.5,
+            filter: status !== "ok" ? `drop-shadow(0 0 4px ${strokeColor})` : undefined,
           },
           markerEnd: {
             type: MarkerType.ArrowClosed,
-            color,
-            width: 13,
-            height: 13,
+            color: strokeColor,
+            width: 12,
+            height: 12,
           },
         };
       }),
     [topology.edges, services],
   );
 
+  const switchMode = (mode: "3d" | "2d" | "split") => {
+    audioEngine.playClick();
+    setViewMode(mode);
+  };
+
   return (
     <Panel
-      title="Service map"
-      code="live topology"
-      bodyClassName="relative p-0"
+      title="Architecture Blueprint & 3D Core"
+      code={viewMode === "3d" ? "3D WEBGL VIEW" : viewMode === "2d" ? "CALL GRAPH" : "SPLIT DECK"}
+      bodyClassName="relative p-0 overflow-hidden bg-titanium-200/50"
       actions={
-        <span className="hidden items-center gap-1.5 text-[8px] uppercase tracking-[0.16em] text-slate-600 sm:flex">
-          <span className="h-1 w-1 rounded-full bg-neon-cyan/60" />
-          edges follow the call path
-        </span>
+        <div className="flex items-center gap-1 border border-[#DDE1EA] bg-[#F8F9FB] p-0.5 shadow-metal font-mono">
+          <button
+            type="button"
+            onClick={() => switchMode("3d")}
+            className={`flex items-center gap-1.5 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider transition ${
+              viewMode === "3d"
+                ? "bg-gradient-to-r from-ultraviolet to-ultraviolet-deep text-white shadow-ultravioletSm"
+                : "text-gunmetal-500 hover:bg-gunmetal-800 hover:text-white"
+            }`}
+            title="3D Atmospheric Core View"
+          >
+            <Box className="h-3 w-3" />
+            <span>3D CORE</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => switchMode("2d")}
+            className={`flex items-center gap-1.5 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider transition ${
+              viewMode === "2d"
+                ? "bg-gradient-to-r from-ultraviolet to-ultraviolet-deep text-white shadow-ultravioletSm"
+                : "text-gunmetal-500 hover:bg-gunmetal-800 hover:text-white"
+            }`}
+            title="2D Flow Architecture Diagram"
+          >
+            <Network className="h-3 w-3" />
+            <span>2D BLUEPRINT</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => switchMode("split")}
+            className={`hidden md:flex items-center gap-1.5 px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider transition ${
+              viewMode === "split"
+                ? "bg-gradient-to-r from-ultraviolet to-ultraviolet-deep text-white shadow-ultravioletSm"
+                : "text-gunmetal-500 hover:bg-gunmetal-800 hover:text-white"
+            }`}
+            title="Split Deck View"
+          >
+            <Columns className="h-3 w-3" />
+            <span>SPLIT</span>
+          </button>
+        </div>
       }
     >
-      <div className="relative h-[420px] sm:h-[470px] xl:h-[566px]">
-        <div
-          className="pointer-events-none absolute inset-0 z-[1]"
-          style={{
-            background:
-              "radial-gradient(ellipse at 50% 45%, transparent 45%, rgba(4,7,10,0.55) 100%)",
-          }}
-          aria-hidden
-        />
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          nodeTypes={NODE_TYPES}
-          fitView
-          fitViewOptions={{ padding: 0.06 }}
-          minZoom={0.4}
-          maxZoom={1.6}
-          nodesDraggable={false}
-          nodesConnectable={false}
-          elementsSelectable={false}
-          panOnScroll
-          zoomOnScroll={false}
-          proOptions={{ hideAttribution: false }}
-        >
-          <Background
-            variant={BackgroundVariant.Dots}
-            gap={20}
-            size={1}
-            color="rgba(32,231,222,0.13)"
-          />
-          <Controls showInteractive={false} position="bottom-right" />
-        </ReactFlow>
+      <div className="relative h-[420px] sm:h-[470px] xl:h-[570px] w-full bg-titanium-200/50">
+        {/* VIEW 1: 3D Holographic Core */}
+        {viewMode === "3d" && (
+          <div className="absolute inset-0">
+            <ChaosCore3D />
+          </div>
+        )}
 
-        <Legend />
+        {/* VIEW 2: 2D ReactFlow Diagram */}
+        {viewMode === "2d" && (
+          <div className="absolute inset-0">
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              nodeTypes={NODE_TYPES}
+              fitView
+              fitViewOptions={{ padding: 0.08 }}
+              minZoom={0.4}
+              maxZoom={1.6}
+              nodesDraggable={false}
+              nodesConnectable={false}
+              elementsSelectable={false}
+              panOnScroll
+              zoomOnScroll={false}
+              proOptions={{ hideAttribution: false }}
+            >
+              <Background
+                variant={BackgroundVariant.Dots}
+                gap={24}
+                size={1}
+                color="rgba(99, 102, 241, 0.14)"
+              />
+              <Controls showInteractive={false} position="bottom-right" />
+            </ReactFlow>
+            <Legend />
+            <div className="pointer-events-none absolute right-3 top-3 z-10 hidden border border-[#DDE1EA] bg-[#F8F9FB]/95 px-2 py-1 font-mono text-[8px] uppercase tracking-[0.16em] text-gunmetal-500 sm:block shadow-metal font-bold">
+              DRAG TO PAN
+            </div>
+          </div>
+        )}
 
-        <div className="pointer-events-none absolute right-2 top-2 z-10 hidden border border-neon-cyan/10 bg-void-950/75 px-2 py-1 text-[8px] uppercase tracking-[0.16em] text-slate-600 sm:block">
-          drag to pan
-        </div>
+        {/* VIEW 3: Split Deck View */}
+        {viewMode === "split" && (
+          <div className="grid grid-cols-2 h-full w-full divide-x divide-[#DDE1EA]">
+            <div className="relative h-full">
+              <ChaosCore3D />
+            </div>
+            <div className="relative h-full">
+              <ReactFlow
+                nodes={nodes}
+                edges={edges}
+                nodeTypes={NODE_TYPES}
+                fitView
+                fitViewOptions={{ padding: 0.14 }}
+                minZoom={0.3}
+                maxZoom={1.4}
+                nodesDraggable={false}
+                nodesConnectable={false}
+                elementsSelectable={false}
+                panOnScroll
+                zoomOnScroll={false}
+                proOptions={{ hideAttribution: false }}
+              >
+                <Background
+                  variant={BackgroundVariant.Dots}
+                  gap={20}
+                  size={1}
+                  color="rgba(99, 102, 241, 0.14)"
+                />
+              </ReactFlow>
+              <Legend />
+            </div>
+          </div>
+        )}
 
         {connection === "offline" && !mockMode ? (
-          <div className="pointer-events-none absolute inset-x-3 top-2 z-20 mx-auto w-fit max-w-full border border-neon-amber/30 bg-void-950/90 px-3 py-1.5 text-center text-[10px] uppercase tracking-[0.14em] text-neon-amber">
-            no live link — retrying · append{" "}
-            <span className="text-neon-ice">?mock=1</span> for a scripted demo
+          <div className="pointer-events-none absolute inset-x-3 top-3 z-20 mx-auto w-fit max-w-full border border-signal-red bg-signal-redLight px-3 py-1.5 text-center font-mono text-[10px] font-bold uppercase tracking-[0.14em] text-signal-red shadow-metal">
+            LINK OFFLINE — RETRYING · APPEND <span className="underline">?mock=1</span> FOR SCRIPTED DEMO
           </div>
         ) : null}
       </div>

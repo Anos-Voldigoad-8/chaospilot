@@ -6,6 +6,7 @@ import { LiveMetrics } from "./components/LiveMetrics";
 import { PostmortemPanel } from "./components/PostmortemPanel";
 import { ServiceMap } from "./components/ServiceMap";
 import { TopBar } from "./components/TopBar";
+import { AuroraBackground } from "./components/common/AuroraBackground";
 import { useWebSocket } from "./hooks/useWebSocket";
 import { useChaosStore } from "./store/useChaosStore";
 
@@ -26,12 +27,16 @@ export default function App() {
   }, [mockMode]);
 
   return (
-    <div className="min-h-screen">
-      <div className="scanlines" aria-hidden />
+    <div className="min-h-screen relative overflow-x-hidden text-gunmetal-900 font-mono">
+      {/* Sleek Cool Titanium & Soft Ultraviolet Ambient Aura */}
+      <AuroraBackground />
+
+      {/* Deep Gunmetal Navigation & High-Contrast Masthead */}
       <TopBar />
 
-      <main className="mx-auto w-full max-w-[1700px] px-2.5 pb-5 pt-3 sm:px-4">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[300px_minmax(0,1fr)_340px]">
+      <main className="relative z-10 mx-auto w-full max-w-[1780px] px-3 pb-8 pt-3 sm:px-6">
+        {/* Core Deck: Mission Control, 3D Architectural Topology, and Live Telemetry */}
+        <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2 xl:grid-cols-[330px_minmax(0,1fr)_350px]">
           <div className="order-2 min-w-0 xl:order-none">
             <ControlPanel />
           </div>
@@ -43,7 +48,8 @@ export default function App() {
           </div>
         </div>
 
-        <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-[1.2fr_1fr_0.85fr]">
+        {/* Intelligence Deck: Reasoning Log, AI Postmortem & RCA, and Comparative Delta */}
+        <div className="mt-3.5 grid grid-cols-1 gap-3.5 lg:grid-cols-2 xl:grid-cols-[1.15fr_1.1fr_0.85fr]">
           <AgentConsole />
           <PostmortemPanel />
           <div className="min-w-0 lg:col-span-2 xl:col-span-1">
@@ -51,12 +57,20 @@ export default function App() {
           </div>
         </div>
 
-        <footer className="mt-4 flex flex-col items-start justify-between gap-1 border-t border-neon-cyan/10 pt-3 text-[8px] uppercase tracking-[0.18em] text-slate-700 sm:flex-row sm:items-center">
-          <span>
-            chaospilot // local chaos lab //{" "}
-            {mockMode ? "mock feed active" : "backend :8090"}
-          </span>
-          <span>telemetry in sqlite · llm calls stay in the backend</span>
+        {/* Deep Gunmetal Technical Footer */}
+        <footer className="mt-8 flex flex-col items-start justify-between gap-2 border border-gunmetal-900/15 bg-gunmetal-900 p-3.5 font-mono text-[9px] uppercase tracking-[0.16em] text-gunmetal-400 sm:flex-row sm:items-center shadow-card">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-ultraviolet">CHAOSPILOT // COOL TITANIUM SILK & GUNMETAL</span>
+            <span>·</span>
+            <span className="text-white/90">{mockMode ? "MOCK REPLAY" : "BACKEND LINK :8090"}</span>
+          </div>
+          <div className="flex items-center gap-3 text-[#5B6272]">
+            <span>DETERMINISTIC SIMULATION</span>
+            <span>·</span>
+            <span>ISOLATION FOREST ANOMALY RADAR</span>
+            <span>·</span>
+            <span>ZERO EXPOSED SECRETS</span>
+          </div>
         </footer>
       </main>
     </div>

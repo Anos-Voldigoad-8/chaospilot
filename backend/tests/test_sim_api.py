@@ -72,7 +72,22 @@ def test_scenarios_collect_and_experiment(tmp_path) -> None:
         assert run["fault_type"] == "latency"
         assert run["target_service"] == "payments"
 
+        # The experiment pauses in the broken (fault) state awaiting a fix.
         detail = None
+        for _ in range(200):
+            detail = client.get(f"/experiments/{run['id']}").json()
+            if detail.get("status") == "fault":
+                break
+            time.sleep(0.1)
+        assert detail is not None
+        assert detail["status"] == "fault", detail
+        assert detail.get("fault_ended") is None, "should be awaiting fix"
+
+        # Apply the fix -> recovery completes.
+        resolve = client.post(f"/experiments/{run['id']}/resolve")
+        assert resolve.status_code == 200, resolve.text
+        assert resolve.json()["status"] == "recovery"
+
         for _ in range(200):
             detail = client.get(f"/experiments/{run['id']}").json()
             if detail.get("status") not in ("pending", "running", "baseline", "fault", "recovery"):
@@ -87,6 +102,14 @@ def test_scenarios_collect_and_experiment(tmp_path) -> None:
         # Experiment shows up in history.
         listed = client.get("/experiments").json()["experiments"]
         assert any(item["id"] == run["id"] for item in listed)
+
+
+def test_resolve_requires_active_fault_experiment(tmp_path) -> None:
+    app, _ = _app(tmp_path)
+    with TestClient(app) as client:
+        # No active experiment.
+        response = client.post("/experiments/1/resolve")
+        assert response.status_code == 400
 
 
 def test_unknown_scenario_rejected(tmp_path) -> None:

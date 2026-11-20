@@ -178,3 +178,31 @@ git check-ignore -v .env
 - [ ] Frontend build passes when the frontend changed.
 - [ ] `pre-commit run --all-files` passes.
 - [ ] Docs updated if behaviour or configuration changed.
+
+## 8. Integrated Skills & Design Memory
+
+### Active Skills (`.agents/skills/`)
+- `impeccable`: Design taste, hierarchy, rhythm, anti-slop guidelines ([pbakaus/impeccable](https://github.com/pbakaus/impeccable)).
+- `taste-skill`: Visual craft, refined dark mode tokens ([leonxlnx/taste-skill](https://github.com/leonxlnx/taste-skill)).
+- `emilkowalski-motion`: Spring physics, micro-interactions ([emilkowalski/skills](https://github.com/emilkowalski/skills)).
+- `ui-ux-pro-max`: Bento grids, tactical HUD elements ([nextlevelbuilder/ui-ux-pro-max-skill](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill)).
+- `diagram-design`: Architecture diagramming & topology flows ([cathrynlavery/diagram-design](https://github.com/cathrynlavery/diagram-design)).
+- `scrapling-harvester`: Resilient statuspage & incident scraping ([D4Vinci/Scrapling](https://github.com/D4Vinci/Scrapling)).
+- `onyx-rag`: Grounded agent reasoning, citations, postmortems ([onyx-dot-app/onyx](https://github.com/onyx-dot-app/onyx)).
+- `hallmark-apps`: Benchmark web application polish ([nutlope/hallmark](https://github.com/nutlope/hallmark)).
+- `ponytail-ui`: Modular component tokens ([dietrichgebert/ponytail](https://github.com/dietrichgebert/ponytail)).
+- `crab-agent`: Autonomous agent execution loops ([lemonadesaltbagel/crab](https://github.com/lemonadesaltbagel/crab)).
+- `stickman-director`: Timeline choreography & incident replay ([kaomei/stickman-video-director](https://github.com/kaomei/stickman-video-director)).
+- `ui-anatomy`: Atomic specs and state machines ([wheresryan22/anatomy](https://github.com/wheresryan22/anatomy)).
+- `skillspector`: Real-time telemetry inspection ([nvidia/skillspector](https://github.com/nvidia/skillspector)).
+- `semgrep-audit`: Static code security, zero secret leaks ([semgrep/semgrep](https://github.com/semgrep/semgrep)).
+- `free-dev-resources`: Free/keyless developer telemetry ([ripienaar/free-for-dev](https://github.com/ripienaar/free-for-dev)).
+
+### Design & Interactive Elements Memory
+- **Three.js**: Interactive 3D WebGL Holographic Chaos Core, orbital satellite nodes, dynamic wireframe deformation.
+- **Componentry** (`componentry.dev/docs`): Interactive UI primitives.
+- **Orbs Library** (`libraries.dev/orbs`): Floating interactive 3D WebGL spheres & ambient aura.
+- **React Bits** (`reactbits.dev`): SpotlightCard cursor glow, ShinyText, AnimatedCounter.
+- **Skiper UI & Vengeance UI** (`skiper-ui.com`, `vengenceui.com`): Cyberpunk dark cockpit styling, radar badges.
+- **OriginKit** (`originkit.dev`): Accessible tactical components.
+- **Lenis** (`lenis.dev`): Butter-smooth micro-interactions.

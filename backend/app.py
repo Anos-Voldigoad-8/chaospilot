@@ -27,7 +27,12 @@ from pydantic import BaseModel, Field
 from agent.data_agent import DataAgent
 from api_config import ApiSettings
 from db import ChaosDatabase
-from experiments import ExperimentBusyError, ExperimentRunner, UnknownScenarioError
+from experiments import (
+    ExperimentBusyError,
+    ExperimentRunner,
+    UnknownExperimentError,
+    UnknownScenarioError,
+)
 from sim.simulator import Simulator
 from sim.topology import topology
 from ws import EventHub
@@ -168,6 +173,16 @@ def create_app(
         if detail is None:
             raise HTTPException(status_code=404, detail="experiment not found")
         return detail
+
+    @application.post("/experiments/{experiment_id}/resolve")
+    async def resolve_experiment(
+        experiment_id: int, request: Request
+    ) -> dict[str, object]:
+        runner: ExperimentRunner = request.app.state.runner
+        try:
+            return await runner.resolve(experiment_id)
+        except UnknownExperimentError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @application.websocket("/ws")
     async def websocket_stream(websocket: WebSocket) -> None:

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, useRef, type ReactNode, type MouseEvent } from "react";
 
 interface PanelProps {
   title: string;
@@ -15,30 +15,52 @@ export function Panel({
   actions,
   children,
   className = "",
-  bodyClassName = "p-3",
+  bodyClassName = "p-3.5",
 }: PanelProps) {
-  return (
-    <section className={`hud-panel flex min-w-0 flex-col ${className}`}>
-      <span className="hud-corner hud-corner-tl" aria-hidden />
-      <span className="hud-corner hud-corner-tr" aria-hidden />
-      <span className="hud-corner hud-corner-bl" aria-hidden />
-      <span className="hud-corner hud-corner-br" aria-hidden />
+  const panelRef = useRef<HTMLElement>(null);
+  const [cursorPos, setCursorPos] = useState({ x: 0, y: 0 });
+  const [isHovered, setIsHovered] = useState(false);
 
-      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-neon-cyan/10 px-3 py-2">
-        <div className="flex min-w-0 items-baseline gap-2">
-          <h2 className="truncate font-display text-[13px] font-semibold uppercase tracking-[0.2em] text-neon-ice">
+  const handleMouseMove = (e: MouseEvent<HTMLElement>) => {
+    if (!panelRef.current) return;
+    const rect = panelRef.current.getBoundingClientRect();
+    setCursorPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+  };
+
+  return (
+    <section
+      ref={panelRef}
+      onMouseMove={handleMouseMove}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      className={`hud-panel relative flex min-w-0 flex-col overflow-hidden border border-gunmetal-900/15 bg-[#F8F9FB]/98 shadow-card backdrop-blur-md transition-all duration-200 hover:border-gunmetal-900/30 ${className}`}
+    >
+      {/* Soft Ultraviolet radial cursor ambient spotlight (Glow tint: rgba(99,102,241,0.14)) */}
+      <div
+        className="pointer-events-none absolute -inset-px transition-opacity duration-300 z-0"
+        style={{
+          opacity: isHovered ? 1 : 0,
+          background: `radial-gradient(380px circle at ${cursorPos.x}px ${cursorPos.y}px, rgba(99, 102, 241, 0.14), transparent 75%)`,
+        }}
+        aria-hidden
+      />
+
+      {/* Deep Gunmetal & Cool Titanium Header */}
+      <header className="relative z-10 flex shrink-0 items-center justify-between gap-3 border-b border-titanium-shadow/70 bg-titanium-highlight/90 px-3.5 py-2.5">
+        <div className="flex min-w-0 items-baseline gap-2.5">
+          <h2 className="truncate font-display text-[14px] font-bold uppercase tracking-[0.14em] text-[#1E222B]">
             {title}
           </h2>
           {code ? (
-            <span className="hidden shrink-0 text-[9px] uppercase tracking-[0.18em] text-neon-cyan/35 sm:inline">
-              {code}
+            <span className="hidden shrink-0 font-mono text-[8.5px] uppercase tracking-[0.18em] text-[#5B6272] sm:inline">
+              // {code}
             </span>
           ) : null}
         </div>
         {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
       </header>
 
-      <div className={`min-h-0 flex-1 ${bodyClassName}`}>{children}</div>
+      <div className={`relative z-10 min-h-0 flex-1 ${bodyClassName}`}>{children}</div>
     </section>
   );
 }

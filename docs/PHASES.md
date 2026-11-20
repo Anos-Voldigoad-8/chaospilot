@@ -121,15 +121,26 @@ cd backend && pytest tests/test_agent_data.py -q
 - `GET /scenarios` lists scenarios (title, source, target, severity).
 - `POST /experiments/run {scenario_id, fixes}` — an experiment can **only**
   run a scenario stored by the agent; no hardcoded/manual fault selection.
+- The experiment runs baseline (10 s) → fault (20 s) automatically, then
+  **stays in the broken state** awaiting operator action. Degraded services,
+  spiked latency/error rate, low gauge and high anomaly score remain visible
+  until the operator clicks "APPLY FIX & RECOVER", which calls
+  `POST /experiments/{id}/resolve` to transition into recovery.
 - Simulator drives the experiment; resilience score, anomaly score, postmortem
   that uses the real incident title and source.
+- Hardcoded fallback scenarios for every fault-type × target-service pair in
+  the attack catalog guarantee the demo works even when the agent/LLM is
+  unavailable.
 
 **Exit criteria**
 
 - [ ] `pytest tests/test_sim_api.py` passes (collect, scenario-only runs,
-  unknown scenario rejected).
+  unknown scenario rejected, resolve endpoint).
+- [ ] Fault phase persists in a broken state until `POST /experiments/{id}/resolve`
+  is called.
 - [ ] Fixes reduce blast radius (higher resilience score).
 - [ ] Postmortem references the scenario title and source.
+- [ ] Hardcoded fallback scenarios exist for all seven demo combinations.
 
 **Verification**
 

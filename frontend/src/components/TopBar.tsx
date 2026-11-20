@@ -1,16 +1,19 @@
 import { useEffect, useState } from "react";
-import { Power } from "lucide-react";
+import { Volume2, VolumeX, Shield, Radio } from "lucide-react";
 import { useChaosStore } from "../store/useChaosStore";
 import type { ConnectionState } from "../types/chaos";
+import { AnimatedCounter } from "./common/AnimatedCounter";
+import { audioEngine } from "../lib/audio";
+import { scoreColor } from "../lib/theme";
 
 const CONNECTION_META: Record<
   ConnectionState,
   { label: string; color: string; detail: string }
 > = {
-  live: { label: "link live", color: "#41f2a6", detail: "streaming telemetry" },
-  connecting: { label: "linking", color: "#ffb224", detail: "opening websocket" },
-  offline: { label: "link down", color: "#ff3d55", detail: "retrying with backoff" },
-  mock: { label: "mock feed", color: "#20e7de", detail: "scripted replay" },
+  live: { label: "LINK LIVE", color: "#6366F1", detail: "TELEMETRY 1Hz" },
+  connecting: { label: "CONNECTING", color: "#F59E0B", detail: "OPENING WS" },
+  offline: { label: "OFFLINE", color: "#EF4444", detail: "AUTO-RETRY" },
+  mock: { label: "MOCK FEED", color: "#818CF8", detail: "LOCAL SEED" },
 };
 
 function ConnectionBadge() {
@@ -18,10 +21,10 @@ function ConnectionBadge() {
   const meta = CONNECTION_META[connection];
 
   return (
-    <div className="flex items-center gap-2 border border-neon-cyan/15 bg-void-900/70 px-2.5 py-1.5">
+    <div className="flex items-center gap-2 border border-white/10 bg-[#2B303B] px-2.5 py-1.5 shadow-hud">
       <span className="relative flex h-2 w-2">
         <span
-          className="absolute inset-0 animate-ping rounded-full opacity-60"
+          className="absolute inset-0 animate-ping rounded-full opacity-70"
           style={{ backgroundColor: meta.color }}
         />
         <span
@@ -29,15 +32,12 @@ function ConnectionBadge() {
           style={{ backgroundColor: meta.color, boxShadow: `0 0 8px ${meta.color}` }}
         />
       </span>
-      <div className="leading-none">
+      <div className="leading-tight font-mono">
         <div
-          className="text-[9px] font-semibold uppercase tracking-[0.18em]"
+          className="text-[9px] font-bold uppercase tracking-[0.14em]"
           style={{ color: meta.color }}
         >
           {meta.label}
-        </div>
-        <div className="mt-1 hidden text-[8px] uppercase tracking-[0.12em] text-slate-600 sm:block">
-          {meta.detail}
         </div>
       </div>
     </div>
@@ -49,48 +49,56 @@ function FixesToggle() {
   const setApplyFixes = useChaosStore((state) => state.setApplyFixes);
   const running = useChaosStore((state) => state.running);
 
+  const toggle = () => {
+    audioEngine.playClick();
+    setApplyFixes(!applyFixes);
+  };
+
   return (
     <button
       type="button"
       role="switch"
       aria-checked={applyFixes}
-      aria-label="Apply fixes before the experiment"
+      aria-label="Toggle Resilient Mode"
       disabled={running}
-      onClick={() => setApplyFixes(!applyFixes)}
-      className={`group flex items-center gap-2 border px-2 py-1.5 transition ${
+      onClick={toggle}
+      className={`group flex items-center gap-2 border px-2.5 py-1.5 font-mono text-[9px] font-bold uppercase tracking-wider transition-all shadow-hud active:scale-95 ${
         applyFixes
-          ? "border-neon-cyan/50 bg-neon-cyan/10 shadow-cyan"
-          : "border-neon-cyan/15 bg-void-900/70 hover:border-neon-cyan/30"
+          ? "border-ultraviolet bg-gradient-to-r from-ultraviolet to-ultraviolet-deep text-white shadow-[0_0_12px_rgba(99,102,241,0.25)]"
+          : "border-white/10 bg-[#2B303B] text-[#DDE1EA] hover:border-ultraviolet hover:text-white"
       } ${running ? "cursor-not-allowed opacity-60" : ""}`}
-      title="Restart the stack with RESILIENT=true before the baseline"
+      title="Toggle Circuit Breakers, Timeouts, and Resilient Retries"
     >
-      <Power
-        className={`h-3 w-3 ${applyFixes ? "text-neon-cyan" : "text-slate-500"}`}
-        aria-hidden
-      />
-      <span className="hidden text-[9px] uppercase tracking-[0.18em] text-slate-400 sm:inline">
-        apply fixes
-      </span>
-      <span
-        className={`relative h-4 w-8 border transition ${
-          applyFixes ? "border-neon-cyan/70 bg-neon-cyan/15" : "border-slate-600/60 bg-void-950"
-        }`}
-      >
-        <span
-          className={`absolute top-0.5 h-2.5 w-2.5 transition-all duration-200 ${
-            applyFixes
-              ? "left-[17px] bg-neon-cyan shadow-[0_0_8px_#20e7de]"
-              : "left-0.5 bg-slate-500"
-          }`}
-        />
-      </span>
-      <span
-        className={`w-5 text-[9px] font-semibold uppercase tracking-[0.1em] ${
-          applyFixes ? "text-neon-cyan" : "text-slate-600"
-        }`}
-      >
-        {applyFixes ? "on" : "off"}
-      </span>
+      <Shield className="h-3 w-3" />
+      <span className="hidden sm:inline">RESILIENT SHIELD:</span>
+      <span>{applyFixes ? "ACTIVE" : "OFF"}</span>
+    </button>
+  );
+}
+
+function SoundToggle() {
+  const [soundOn, setSoundOn] = useState(() => audioEngine.enabled);
+
+  const toggle = () => {
+    const next = !soundOn;
+    audioEngine.setEnabled(next);
+    setSoundOn(next);
+    if (next) audioEngine.playClick();
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      className={`flex items-center gap-1.5 border px-2.5 py-1.5 font-mono text-[9px] font-semibold uppercase tracking-wider transition shadow-hud active:scale-95 ${
+        soundOn
+          ? "border-ultraviolet/60 bg-ultraviolet/20 text-ultraviolet-light shadow-ultravioletSm"
+          : "border-white/10 bg-[#2B303B] text-[#DDE1EA] hover:border-white/25 hover:text-white"
+      }`}
+      title={soundOn ? "Mute audio cues" : "Enable tactile sound feedback"}
+    >
+      {soundOn ? <Volume2 className="h-3 w-3 text-ultraviolet-light" /> : <VolumeX className="h-3 w-3" />}
+      <span className="hidden md:inline">{soundOn ? "AUDIO ON" : "MUTED"}</span>
     </button>
   );
 }
@@ -104,12 +112,12 @@ function Clock() {
   }, []);
 
   return (
-    <div className="hidden text-right leading-none lg:block">
-      <div className="hud-value text-[15px] font-medium">
+    <div className="hidden border-l border-white/10 pl-3.5 text-right leading-none lg:block font-mono">
+      <div className="text-[13px] font-bold tabular-nums text-white">
         {now.toLocaleTimeString("en-GB", { hour12: false })}
       </div>
-      <div className="mt-1 text-[8px] uppercase tracking-[0.24em] text-neon-cyan/35">
-        local time
+      <div className="mt-1 text-[8px] uppercase tracking-[0.2em] text-[#5B6272] font-semibold">
+        LOCAL TIME
       </div>
     </div>
   );
@@ -118,68 +126,92 @@ function Clock() {
 export function TopBar() {
   const mockMode = useChaosStore((state) => state.mockMode);
   const backendDown = useChaosStore((state) => state.backendDown);
+  const running = useChaosStore((state) => state.running);
+  const collecting = useChaosStore((state) => state.collecting);
+  const score = useChaosStore((state) => state.score);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-neon-cyan/15 bg-void-950/85 backdrop-blur-md">
-      <div className="mx-auto flex max-w-[1700px] flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2 sm:px-4">
-        <div className="flex items-center gap-2.5">
-          <svg
-            viewBox="0 0 32 32"
-            className="h-8 w-8 shrink-0 text-neon-cyan drop-shadow-[0_0_8px_rgba(32,231,222,0.5)]"
-            aria-hidden
-          >
-            <rect
-              x="4.5"
-              y="4.5"
-              width="23"
-              height="23"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="0.8"
-              opacity="0.35"
-              transform="rotate(45 16 16)"
-            />
-            <rect
-              x="9.5"
-              y="9.5"
-              width="13"
-              height="13"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1"
-            />
-            <circle cx="16" cy="16" r="2.2" fill="currentColor" />
-            <path d="M16 2v3M16 27v3M2 16h3M27 16h3" stroke="currentColor" strokeWidth="1" />
-          </svg>
+    <header className="sticky top-0 z-40 border-b border-black/30 bg-[#1E222B] shadow-card backdrop-blur-md">
+      <div className="mx-auto flex max-w-[1780px] flex-wrap items-center justify-between gap-x-4 gap-y-2.5 px-3 py-2.5 sm:px-6">
+        
+        {/* Left: Deep Gunmetal & Soft Ultraviolet Brand Identity */}
+        <div className="flex items-center gap-3">
+          <div className="flex h-8 w-8 items-center justify-center border border-ultraviolet/80 bg-gradient-to-br from-ultraviolet to-ultraviolet-deep text-white font-mono text-[14px] font-black shadow-[0_0_12px_rgba(99,102,241,0.25)]">
+            CP
+          </div>
+
           <div>
-            <h1 className="font-display text-[21px] font-bold leading-none tracking-[0.16em] text-neon-ice text-glow">
-              CHAOSPILOT
-            </h1>
-            <p className="mt-1 text-[8px] uppercase tracking-[0.3em] text-neon-cyan/40">
-              chaos engineering console
+            <div className="flex items-center gap-2">
+              <h1 className="font-display text-[21px] font-black leading-none tracking-[0.12em] text-white flex items-center gap-1.5">
+                <span>CHAOSPILOT</span>
+                <span className="h-1.5 w-1.5 rounded-full bg-ultraviolet shadow-[0_0_8px_#6366F1]" />
+              </h1>
+              <span className="border border-white/10 bg-[#2B303B] px-1.5 py-0.5 font-mono text-[8px] font-bold tracking-widest text-ultraviolet-light">
+                3D COCKPIT
+              </span>
+            </div>
+            <p className="mt-0.5 font-mono text-[8px] uppercase tracking-[0.24em] text-[#5B6272]">
+              COOL TITANIUM SILK & DEEP GUNMETAL
             </p>
           </div>
         </div>
 
-        <span
-          className={`hud-chip ml-1 border-neon-cyan/25 text-neon-cyan/70 ${
-            mockMode ? "" : "hidden"
-          }`}
-        >
-          mock
-        </span>
+        {/* Center: Live Mission Status Beacon in Raised Gunmetal */}
+        <div className="hidden xl:flex items-center gap-2.5 border border-white/10 bg-[#2B303B] px-3.5 py-1.5 shadow-hud">
+          <Radio
+            className={`h-3.5 w-3.5 ${
+              running
+                ? "text-signal-red animate-pulse"
+                : collecting
+                  ? "text-signal-amber animate-spin"
+                  : "text-ultraviolet-light"
+            }`}
+          />
+          <div className="font-mono text-[9px] uppercase tracking-[0.16em]">
+            <span className="text-[#5B6272]">CLUSTER: </span>
+            <span
+              className={`font-bold ${
+                running
+                  ? "text-signal-red"
+                  : collecting
+                    ? "text-signal-amber"
+                    : "text-ultraviolet-light"
+              }`}
+            >
+              {running
+                ? "CHAOS FAULT INJECTION ACTIVE"
+                : collecting
+                  ? "HARVESTING STATUS FEEDS"
+                  : "NOMINAL STEADY-STATE"}
+            </span>
+          </div>
+        </div>
 
-        <div className="ml-auto flex items-center gap-2 sm:gap-3">
-          <ConnectionBadge />
+        {/* Right: Telemetry & Controls */}
+        <div className="flex items-center gap-2.5 sm:gap-3">
+          {/* Resilience Score Pill in Raised Gunmetal */}
+          <div className="flex items-center gap-2 border border-white/10 bg-[#2B303B] px-3 py-1.5 shadow-hud">
+            <span className="font-mono text-[8px] uppercase tracking-[0.14em] text-[#5B6272]">
+              RESILIENCE
+            </span>
+            <span
+              className="font-mono text-[14px] font-bold leading-none"
+              style={{ color: scoreColor(score) }}
+            >
+              <AnimatedCounter value={score} duration={500} suffix="/100" />
+            </span>
+          </div>
+
+          <SoundToggle />
           <FixesToggle />
+          <ConnectionBadge />
           <Clock />
         </div>
       </div>
 
       {backendDown && !mockMode ? (
-        <div className="border-t border-neon-red/30 bg-neon-red/[0.07] px-3 py-1.5 text-center text-[9px] uppercase tracking-[0.16em] text-neon-red/90">
-          backend unreachable // start it with run_demo.ps1 or run_demo.sh // retrying
-          automatically
+        <div className="border-t border-signal-red/50 bg-signal-redLight px-3 py-1.5 text-center font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-signal-red">
+          BACKEND DISCONNECTED // RECONNECTING TO FASTAPI (:8090)
         </div>
       ) : null}
     </header>

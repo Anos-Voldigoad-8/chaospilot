@@ -1,5 +1,5 @@
-import { useCountUp } from "../hooks/useAnimation";
 import { scoreColor, scoreVerdict } from "../lib/theme";
+import { AnimatedCounter } from "./common/AnimatedCounter";
 
 const ARC = "M 30.72 140 A 80 80 0 1 1 169.28 140";
 const CX = 100;
@@ -8,7 +8,7 @@ const RADIUS = 80;
 
 function tick(angle: number): string {
   const radians = (angle * Math.PI) / 180;
-  const inner = RADIUS + 6;
+  const inner = RADIUS + 5;
   const outer = RADIUS + 10;
   const x1 = CX + Math.cos(radians) * inner;
   const y1 = CY + Math.sin(radians) * inner;
@@ -20,16 +20,24 @@ function tick(angle: number): string {
 const TICKS = Array.from({ length: 17 }, (_, index) => 150 + index * 15);
 
 export function ResilienceGauge({ score }: { score: number }) {
-  const display = useCountUp(score);
-  const color = scoreColor(display);
-  const verdict = scoreVerdict(display);
+  const color = scoreColor(score);
+  const verdict = scoreVerdict(score);
+
+  // Circumference calculation for strokeDashoffset (approx 335 total arc length)
+  const arcLength = 335;
+  const offset = arcLength - (arcLength * Math.min(100, Math.max(0, score))) / 100;
 
   return (
-    <div className="relative mx-auto w-full max-w-[248px]">
-      <svg viewBox="0 0 200 158" className="w-full" role="img" aria-label={`Resilience ${Math.round(display)} of 100`}>
+    <div className="relative mx-auto w-full max-w-[260px] py-1 select-none font-mono">
+      <svg
+        viewBox="0 0 200 156"
+        className="w-full"
+        role="img"
+        aria-label={`Resilience score: ${Math.round(score)} out of 100`}
+      >
         <defs>
-          <filter id="gauge-glow" x="-30%" y="-30%" width="160%" height="160%">
-            <feGaussianBlur stdDeviation="2.4" result="blur" />
+          <filter id="ultraviolet-glow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="3" result="blur" />
             <feMerge>
               <feMergeNode in="blur" />
               <feMergeNode in="SourceGraphic" />
@@ -37,56 +45,61 @@ export function ResilienceGauge({ score }: { score: number }) {
           </filter>
         </defs>
 
+        {/* Outer tick marks */}
         {TICKS.map((angle) => (
           <path
             key={angle}
             d={tick(angle)}
-            stroke="rgba(32,231,222,0.18)"
-            strokeWidth="0.8"
+            stroke="rgba(99, 102, 241, 0.25)"
+            strokeWidth="1.2"
           />
         ))}
 
+        {/* Inactive background track in Cool Titanium Silk (deep shadow fold) */}
         <path
           d={ARC}
           fill="none"
-          stroke="rgba(32,231,222,0.09)"
-          strokeWidth="8"
+          stroke="#DDE1EA"
+          strokeWidth="9"
         />
+
+        {/* Active glowing score stroke */}
         <path
           d={ARC}
           fill="none"
           stroke={color}
-          strokeWidth="8"
-          strokeLinecap="butt"
-          pathLength={100}
-          strokeDasharray="100"
-          strokeDashoffset={100 - display}
-          filter="url(#gauge-glow)"
+          strokeWidth="9"
+          strokeLinecap="round"
+          strokeDasharray={arcLength}
+          strokeDashoffset={offset}
+          filter="url(#ultraviolet-glow)"
+          className="transition-all duration-700 ease-out"
         />
-
-        <text x="24" y="153" fill="rgba(148,163,184,0.4)" fontSize="7" fontFamily="JetBrains Mono, monospace">
-          0
-        </text>
-        <text x="168" y="153" fill="rgba(148,163,184,0.4)" fontSize="7" fontFamily="JetBrains Mono, monospace">
-          100
-        </text>
       </svg>
 
-      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center pt-2">
-        <span
-          className="font-display text-[44px] font-bold leading-none tabular-nums"
-          style={{ color, textShadow: `0 0 18px ${color}66` }}
-        >
-          {Math.round(display)}
-        </span>
-        <span className="mt-1 text-[8px] uppercase tracking-[0.3em] text-neon-cyan/45">
-          resilience
-        </span>
-        <span
-          className="mt-1 text-[9px] uppercase tracking-[0.22em]"
-          style={{ color }}
-        >
-          {verdict}
+      {/* Center readout overlay */}
+      <div className="absolute inset-x-0 bottom-2.5 flex flex-col items-center justify-center text-center">
+        <div className="font-mono text-[36px] font-black leading-none tracking-tight text-gunmetal-900">
+          <AnimatedCounter value={score} duration={500} />
+          <span className="text-[13px] font-mono text-gunmetal-500 font-normal">/100</span>
+        </div>
+
+        <div className="mt-1">
+          <span
+            className="inline-block border px-2 py-0.5 font-mono text-[8.5px] font-bold uppercase tracking-[0.18em]"
+            style={{
+              color,
+              borderColor: `${color}60`,
+              backgroundColor: `${color}18`,
+              boxShadow: `0 0 10px ${color}25`,
+            }}
+          >
+            {verdict}
+          </span>
+        </div>
+
+        <span className="mt-1 font-mono text-[7.5px] uppercase tracking-[0.24em] text-gunmetal-500 font-bold">
+          SYSTEM RESILIENCE INDEX
         </span>
       </div>
     </div>

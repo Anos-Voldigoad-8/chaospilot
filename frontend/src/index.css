@@ -4,7 +4,7 @@
 
 @layer base {
   :root {
-    color-scheme: dark;
+    color-scheme: light;
   }
 
   html,
@@ -14,217 +14,143 @@
   }
 
   body {
-    @apply bg-void-950 font-mono text-[13px] text-slate-300 antialiased;
+    @apply font-mono text-[13px] antialiased;
+    background-color: #F1F3F6; /* Base: Cool Titanium Silk */
+    color: #1E222B; /* Secondary (30%): Deep Gunmetal */
     background-image:
-      radial-gradient(ellipse 70% 45% at 50% -10%, rgba(32, 231, 222, 0.07), transparent 70%),
-      linear-gradient(rgba(32, 231, 222, 0.028) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(32, 231, 222, 0.028) 1px, transparent 1px);
-    background-size: 100% 100%, 42px 42px, 42px 42px;
+      /* Soft Ultraviolet ambient glow */
+      radial-gradient(1200px 700px at 8% 0%, rgba(99, 102, 241, 0.14), transparent 60%),
+      /* Cool Titanium highlight fold */
+      radial-gradient(900px 600px at 95% 22%, rgba(248, 249, 251, 0.85), transparent 60%),
+      /* Deep shadow fold */
+      radial-gradient(1100px 700px at 50% 110%, rgba(221, 225, 234, 0.75), transparent 65%),
+      /* Diagonal Cool Titanium Silk ribbon */
+      linear-gradient(118deg,
+        #F8F9FB 0%,   /* highlight */
+        #F1F3F6 22%,  /* base */
+        #E8EBF1 46%,  /* fold */
+        #DDE1EA 68%,  /* deep shadow fold */
+        #E8EBF1 84%,  /* fold */
+        #F8F9FB 100%  /* highlight */
+      );
     background-attachment: fixed;
   }
 
+  body::before {
+    content: "";
+    position: fixed;
+    inset: -20%;
+    pointer-events: none;
+    background: linear-gradient(120deg,
+      transparent 32%,
+      rgba(248, 249, 251, 0.7) 46%, /* #F8F9FB highlight */
+      rgba(99, 102, 241, 0.14) 52%,  /* Soft Ultraviolet glow tint: rgba(99,102,241,0.14) */
+      transparent 68%);
+    filter: blur(40px);
+    animation: silk 18s ease-in-out infinite alternate;
+    z-index: 0;
+  }
+
   ::selection {
-    @apply bg-neon-cyan/25 text-neon-ice;
+    background-color: #6366F1;
+    color: #FFFFFF;
   }
 
   ::-webkit-scrollbar {
-    width: 7px;
-    height: 7px;
+    width: 6px;
+    height: 6px;
   }
 
   ::-webkit-scrollbar-track {
-    background: transparent;
+    background: #F1F3F6;
   }
 
   ::-webkit-scrollbar-thumb {
-    background: rgba(32, 231, 222, 0.18);
+    background: #DDE1EA; /* Deep shadow fold */
     border-radius: 999px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(32, 231, 222, 0.32);
+    background: #6366F1; /* Soft Ultraviolet */
   }
 }
 
 @layer components {
   .hud-panel {
-    @apply relative border border-neon-cyan/15 bg-void-900/85 shadow-hud backdrop-blur-sm;
+    @apply relative border border-gunmetal-900/15 backdrop-blur-md shadow-card text-gunmetal-900;
+    background-color: rgba(248, 249, 251, 0.98); /* #F8F9FB at 98% */
   }
 
   .hud-corner {
-    @apply pointer-events-none absolute h-2.5 w-2.5 border-neon-cyan/50;
-    border-style: solid;
-    border-width: 0;
-  }
-
-  .hud-corner-tl {
-    @apply -left-px -top-px border-l border-t;
-  }
-
-  .hud-corner-tr {
-    @apply -right-px -top-px border-r border-t;
-  }
-
-  .hud-corner-bl {
-    @apply -bottom-px -left-px border-b border-l;
-  }
-
-  .hud-corner-br {
-    @apply -bottom-px -right-px border-b border-r;
+    display: none;
   }
 
   .hud-label {
-    @apply text-[9px] font-medium uppercase tracking-[0.24em] text-neon-cyan/55;
+    @apply font-mono text-[9px] font-bold uppercase tracking-[0.2em] text-[#5B6272];
   }
 
   .hud-value {
-    @apply font-mono tabular-nums tracking-tight text-neon-ice;
+    @apply font-mono tabular-nums tracking-tight text-gunmetal-900 font-bold;
   }
 
   .hud-select {
-    @apply w-full appearance-none border border-neon-cyan/15 bg-void-950/80 px-2.5 py-2 font-mono text-[12px] uppercase tracking-wider text-neon-ice outline-none transition;
-    background-image: linear-gradient(45deg, transparent 50%, rgba(32, 231, 222, 0.6) 50%),
-      linear-gradient(135deg, rgba(32, 231, 222, 0.6) 50%, transparent 50%);
-    background-position:
-      calc(100% - 14px) 55%,
-      calc(100% - 9px) 55%;
-    background-size: 5px 5px, 5px 5px;
-    background-repeat: no-repeat;
-  }
-
-  .hud-select:hover,
-  .hud-select:focus {
-    @apply border-neon-cyan/45;
-    box-shadow: 0 0 0 1px rgba(32, 231, 222, 0.08), 0 0 18px rgba(32, 231, 222, 0.08);
-  }
-
-  .hud-select:disabled {
-    @apply cursor-not-allowed opacity-40;
+    @apply w-full appearance-none border border-gunmetal-900/15 bg-titanium-100 px-3 py-2 font-mono text-[11px] uppercase tracking-wider text-gunmetal-900 outline-none transition focus:border-ultraviolet focus:ring-1 focus:ring-ultraviolet/20;
   }
 
   .hud-chip {
-    @apply inline-flex items-center gap-1 border px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-[0.14em];
-  }
-
-  .scanlines {
-    @apply pointer-events-none fixed inset-0 z-50;
-    background-image: repeating-linear-gradient(
-      to bottom,
-      rgba(255, 255, 255, 0.022) 0px,
-      rgba(255, 255, 255, 0.022) 1px,
-      transparent 1px,
-      transparent 3px
-    );
-    mix-blend-mode: overlay;
-  }
-
-  .scanlines::after {
-    content: "";
-    @apply absolute inset-x-0 top-0 h-24;
-    background: linear-gradient(to bottom, transparent, rgba(32, 231, 222, 0.05), transparent);
-    animation: hud-sweep 7s linear infinite;
+    @apply inline-flex items-center gap-1 border border-gunmetal-900/15 bg-titanium-fold/60 px-2 py-0.5 font-mono text-[8.5px] font-semibold uppercase tracking-[0.14em] text-[#5B6272];
   }
 }
 
 @layer utilities {
   .text-glow {
-    text-shadow: 0 0 12px currentColor;
-  }
-
-  .bracket-left::before {
-    content: "[";
-    @apply mr-1 text-neon-cyan/40;
-  }
-
-  .bracket-right::after {
-    content: "]";
-    @apply ml-1 text-neon-cyan/40;
+    text-shadow: 0 0 12px rgba(99, 102, 241, 0.28);
   }
 }
 
 /* ------------------------------------------------------------------ */
-/* Service map nodes                                                   */
+/* Cool Titanium & Gunmetal Service Nodes                             */
 /* ------------------------------------------------------------------ */
 .service-node {
   position: relative;
-  width: 168px;
-  border: 1px solid rgba(32, 231, 222, 0.16);
-  background: linear-gradient(160deg, rgba(14, 23, 32, 0.96), rgba(7, 12, 18, 0.96));
-  padding: 9px 10px 8px;
-  color: #9fe8ef;
+  width: 172px;
+  border: 1px solid rgba(30, 34, 43, 0.18); /* Deep Gunmetal panel border */
+  background: #F8F9FB; /* Cool Titanium Highlight */
+  padding: 10px 11px 9px;
+  color: #1E222B; /* Primary text */
+  box-shadow: 0 2px 10px rgba(30, 34, 43, 0.06);
+  backdrop-filter: blur(8px);
   transition:
-    border-color 260ms ease,
-    box-shadow 260ms ease,
-    color 260ms ease;
+    border-color 200ms ease,
+    box-shadow 200ms ease,
+    transform 150ms ease;
 }
 
-.service-node::before,
-.service-node::after {
-  content: "";
-  position: absolute;
-  width: 6px;
-  height: 6px;
-  border-color: currentColor;
-  border-style: solid;
-  border-width: 0;
-  opacity: 0.6;
-}
-
-.service-node::before {
-  top: -1px;
-  left: -1px;
-  border-top-width: 1px;
-  border-left-width: 1px;
-}
-
-.service-node::after {
-  right: -1px;
-  bottom: -1px;
-  border-right-width: 1px;
-  border-bottom-width: 1px;
+.service-node:hover {
+  box-shadow: 0 0 18px rgba(99, 102, 241, 0.2);
+  border-color: #6366F1;
 }
 
 .service-node--ok {
-  color: #41f2a6;
-  border-color: rgba(65, 242, 166, 0.34);
-  box-shadow:
-    0 0 16px rgba(65, 242, 166, 0.08),
-    inset 0 0 22px rgba(65, 242, 166, 0.04);
-}
-
-.service-node--ok .service-node__aura {
-  animation: node-breathe 2.6s ease-in-out infinite;
+  border-color: rgba(99, 102, 241, 0.35);
+  box-shadow: 0 1px 6px rgba(99, 102, 241, 0.08);
 }
 
 .service-node--warn {
-  color: #ffb224;
-  border-color: rgba(255, 178, 36, 0.65);
-  box-shadow:
-    0 0 20px rgba(255, 178, 36, 0.18),
-    inset 0 0 22px rgba(255, 178, 36, 0.06);
-}
-
-.service-node--warn .service-node__aura {
-  animation: node-breathe 1.1s ease-in-out infinite;
+  border-color: #F59E0B;
+  color: #D97706;
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.15);
 }
 
 .service-node--bad {
-  color: #ff3d55;
-  border-color: rgba(255, 61, 85, 0.9);
-  box-shadow:
-    0 0 26px rgba(255, 61, 85, 0.3),
-    inset 0 0 26px rgba(255, 61, 85, 0.12);
-  animation:
-    node-shake 0.28s linear infinite,
-    node-flash 1.1s ease-in-out infinite;
+  border-color: #EF4444;
+  color: #DC2626;
+  box-shadow: 0 0 18px rgba(239, 68, 68, 0.22);
+  animation: node-shake 0.3s linear infinite;
 }
 
 .service-node__aura {
-  position: absolute;
-  inset: -5px;
-  border: 1px solid currentColor;
-  opacity: 0.16;
-  pointer-events: none;
+  display: none;
 }
 
 .service-node__dot {
@@ -232,62 +158,72 @@
   height: 7px;
   border-radius: 999px;
   background: currentColor;
-  box-shadow: 0 0 10px currentColor;
+  box-shadow: 0 0 6px currentColor;
 }
 
 .service-node__target {
   position: absolute;
-  top: -9px;
+  top: -8px;
   right: 8px;
-  padding: 1px 5px;
+  padding: 1px 6px;
   font-size: 8px;
-  letter-spacing: 0.18em;
-  background: #04070a;
-  border: 1px solid currentColor;
-  color: currentColor;
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 800;
+  letter-spacing: 0.15em;
+  background: #6366F1; /* Soft Ultraviolet */
+  color: #FFFFFF;
+  box-shadow: 0 0 10px rgba(99, 102, 241, 0.4);
 }
 
-/* React Flow dark HUD chrome */
+/* React Flow Chrome */
 .react-flow__attribution {
-  background: transparent !important;
-  color: rgba(148, 163, 184, 0.18) !important;
-  font-family: "JetBrains Mono", monospace;
-  font-size: 8px;
+  display: none !important;
 }
 
 .react-flow__controls {
-  box-shadow: none;
+  box-shadow: 0 2px 10px rgba(30, 34, 43, 0.08) !important;
+  border: 1px solid rgba(30, 34, 43, 0.18) !important;
+  background: #F8F9FB !important;
+  border-radius: 4px !important;
 }
 
 .react-flow__controls-button {
-  @apply !h-6 !w-6 !border-neon-cyan/15 !bg-void-900 !fill-neon-cyan/50;
+  border-bottom: 1px solid #DDE1EA !important;
+  background: #F8F9FB !important;
+  fill: #6366F1 !important;
 }
 
 .react-flow__controls-button:hover {
-  @apply !bg-void-800 !fill-neon-cyan;
+  background: #F8F9FB !important;
 }
 
 .react-flow__handle {
   opacity: 0;
   width: 1px;
   height: 1px;
-  min-width: 1px;
-  min-height: 1px;
 }
 
 .react-flow__edge-path {
-  transition:
-    stroke 320ms ease,
-    stroke-width 320ms ease;
+  stroke: rgba(99, 102, 241, 0.35);
+  stroke-width: 1.5;
+  transition: stroke 200ms ease;
 }
 
 .react-flow__edge.animated path {
+  stroke: #6366F1;
+  stroke-width: 2.2;
   stroke-dasharray: 5 4;
-  animation: dashdraw 0.55s linear infinite;
+  filter: drop-shadow(0 0 4px rgba(99, 102, 241, 0.45));
+  animation: dashdraw 0.5s linear infinite;
 }
 
 @keyframes dashdraw {
   to {
     stroke-dashoffset: -9;
   }
+}
+
+@keyframes silk {
+  from { transform: translateX(-6%) rotate(0deg); }
+  to   { transform: translateX(6%) rotate(2deg); }
 }

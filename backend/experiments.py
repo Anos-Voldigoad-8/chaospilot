@@ -83,6 +83,7 @@ class RunContext:
     baseline: dict[str, float] = field(default_factory=dict)
     recovered: bool = False
     awaiting_fix: bool = False
+    stopped: bool = False
 
 
 class ExperimentRunner:
@@ -210,6 +211,27 @@ class ExperimentRunner:
         )
         return {"id": run.id, "status": "recovery", "fault_ended": run.fault_ended}
 
+    async def stop(self, experiment_id: int) -> dict[str, Any]:
+        """Stop the active experiment so a new one can be started.
+
+        Called by the operator clicking "STOP / RESET". Marks the run as
+        stopped so the paused fault loop exits and the experiment finishes
+        with status ``stopped``. Clears the active run so the next
+        ``start()`` is accepted.
+        """
+        run = self._run
+        if run is None or run.id != experiment_id:
+            raise UnknownExperimentError(f"no active experiment #{experiment_id}")
+        run.stopped = True
+        run.awaiting_fix = False
+        run.fault_ended = time.time()
+        self.database.update_run(run.id, fault_ended=run.fault_ended)
+        await self.hub.log(
+            "warn",
+            f"Operator stopped experiment #{run.id}; clearing active run",
+        )
+        return {"id": run.id, "status": "stopped", "fault_ended": run.fault_ended}
+
     # ------------------------------------------------------------------ #
     # Run lifecycle
     # ------------------------------------------------------------------ #
@@ -276,23 +298,32 @@ class ExperimentRunner:
             # broken state until resolve() is called.
             fault_samples = [s for s in samples if s.label == 1]
             await self._broadcast_samples(run, fault_samples, fast=False)
-            # Wait here until the operator resolves the experiment.
-            while run.awaiting_fix:
+            # Wait here until the operator resolves or stops the experiment.
+            while run.awaiting_fix and not run.stopped:
                 await asyncio.sleep(0.25)
                 if run.fault_started is not None and run.fault_ended is None:
                     # Keep re-broadcasting the broken fault state so the
                     # dashboard continues to show red/warn nodes and spiked
-                    # metrics while waiting for the fix.
+                    # metrics while waiting for the fix or stop.
                     await self._broadcast_samples(run, fault_samples, fast=False)
-            # The operator clicked "APPLY FIX & RECOVER": run.fault_ended is
-            # now set by resolve() and we transition into recovery.
-            run.fault_ended = time.time()
-            self.database.update_run(run.id, status="recovery", fault_ended=run.fault_ended)
-            await self.hub.log("info", "Fix applied; observing recovery")
-            recovery_samples = [s for s in samples if s.label == 0 and s.experiment_id is not None]
-            await self._broadcast_samples(run, recovery_samples, fast=True)
-            run.recovery_end = time.time()
-            self.database.update_run(run.id, status="completed")
+
+            if run.stopped:
+                # Operator hit STOP / RESET: finish as stopped without recovery.
+                status = "stopped"
+                run.fault_ended = time.time()
+                self.database.update_run(run.id, status="stopped", fault_ended=run.fault_ended)
+                await self.hub.log("info", "Experiment stopped by operator")
+                run.recovery_end = time.time()
+            else:
+                # The operator clicked "APPLY FIX & RECOVER": run.fault_ended is
+                # now set by resolve() and we transition into recovery.
+                run.fault_ended = time.time()
+                self.database.update_run(run.id, status="recovery", fault_ended=run.fault_ended)
+                await self.hub.log("info", "Fix applied; observing recovery")
+                recovery_samples = [s for s in samples if s.label == 0 and s.experiment_id is not None]
+                await self._broadcast_samples(run, recovery_samples, fast=True)
+                run.recovery_end = time.time()
+                self.database.update_run(run.id, status="completed")
         except asyncio.CancelledError:
             failure = "cancelled during shutdown"
             status = "cancelled"

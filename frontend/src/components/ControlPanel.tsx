@@ -4,9 +4,9 @@ import {
   Radar,
   RefreshCw,
   Zap,
-  Flame,
   Target,
   History,
+  StopCircle,
 } from "lucide-react";
 import { useChaosStore } from "../store/useChaosStore";
 import { formatRelative } from "../lib/stats";
@@ -69,6 +69,7 @@ export function ControlPanel() {
   const lastError = useChaosStore((state) => state.lastError);
   const runExperiment = useChaosStore((state) => state.runExperiment);
   const resolveExperiment = useChaosStore((state) => state.resolveExperiment);
+  const stopExperiment = useChaosStore((state) => state.stopExperiment);
   const collectData = useChaosStore((state) => state.collectData);
   const experiments = useChaosStore((state) => state.experiments);
   const loadExperiment = useChaosStore((state) => state.loadExperiment);
@@ -269,56 +270,75 @@ export function ControlPanel() {
           <span>ENABLE RESILIENT SHIELD (CIRCUIT BREAKERS & TIMEOUTS)</span>
         </label>
 
-        {/* Resolve / Inject action button */}
-        {faultActive ? (
-          <button
-            type="button"
-            onClick={() => {
-              audioEngine.playFaultAlert();
-              void resolveExperiment();
-            }}
-            disabled={busy}
-            className={`group w-full border px-4 py-3 text-center font-mono transition-all duration-200 shadow-[0_0_24px_rgba(16,185,129,0.18)] active:scale-[0.98] ${
-              busy
-                ? "cursor-not-allowed border-gunmetal-900/10 bg-titanium-fold text-[#5B6272] shadow-none"
-                : "border-signal-green bg-gradient-to-r from-[#10B981] to-[#059669] text-white font-black hover:from-[#059669] hover:to-[#0D9488] shadow-[0_0_24px_rgba(16,185,129,0.25)] focus:ring-2 focus:ring-signal-green"
-            }`}
-          >
-            <div className="flex items-center justify-center gap-2 font-display text-[17px] font-black uppercase tracking-[0.24em]">
-              <Play className="h-5 w-5 text-white fill-current" />
-              <span>{"APPLY FIX & RECOVER"}</span>
-            </div>
-            <span className="mt-0.5 block font-mono text-[8px] uppercase tracking-[0.22em] text-white/90 font-bold opacity-90">
-              HEAL THE STACK // RESTORE NOMINAL TELEMETRY
-            </span>
-          </button>
+        {/* Resolve / Inject / Stop action buttons */}
+        {running || faultActive ? (
+          <>
+            {/* STOP / RESET — abort the current run so a new task can start */}
+            <button
+              type="button"
+              onClick={() => {
+                audioEngine.playFaultAlert();
+                void stopExperiment();
+              }}
+              disabled={busy}
+              className={`group w-full border px-4 py-3 text-center font-mono transition-all duration-200 shadow-[0_0_24px_rgba(239,68,68,0.18)] active:scale-[0.98] ${
+                busy
+                  ? "cursor-not-allowed border-gunmetal-900/10 bg-titanium-fold text-[#5B6272] shadow-none"
+                  : "border-signal-red bg-gradient-to-r from-[#EF4444] to-[#B91C1C] text-white font-black hover:from-[#B91C1C] hover:to-[#991B1B] shadow-[0_0_24px_rgba(239,68,68,0.25)] focus:ring-2 focus:ring-signal-red"
+              }`}
+            >
+              <div className="flex items-center justify-center gap-2 font-display text-[15px] font-black uppercase tracking-[0.24em]">
+                <StopCircle className="h-5 w-5 text-white fill-current" />
+                <span>{running ? "STOP EXPERIMENT" : "RESET & STOP"}</span>
+              </div>
+              <span className="mt-0.5 block font-mono text-[8px] uppercase tracking-[0.22em] text-white/90 font-bold opacity-90">
+                ABORT RUN // CLEAR ACTIVE TASK
+              </span>
+            </button>
+
+            {faultActive && (
+              <button
+                type="button"
+                onClick={() => {
+                  audioEngine.playFaultAlert();
+                  void resolveExperiment();
+                }}
+                disabled={busy}
+                className={`group w-full border px-4 py-3 text-center font-mono transition-all duration-200 shadow-[0_0_24px_rgba(16,185,129,0.18)] active:scale-[0.98] ${
+                  busy
+                    ? "cursor-not-allowed border-gunmetal-900/10 bg-titanium-fold text-[#5B6272] shadow-none"
+                    : "border-signal-green bg-gradient-to-r from-[#10B981] to-[#059669] text-white font-black hover:from-[#059669] hover:to-[#0D9488] shadow-[0_0_24px_rgba(16,185,129,0.25)] focus:ring-2 focus:ring-signal-green"
+                }`}
+              >
+                <div className="flex items-center justify-center gap-2 font-display text-[15px] font-black uppercase tracking-[0.24em]">
+                  <Play className="h-5 w-5 text-white fill-current" />
+                  <span>{"APPLY FIX & RECOVER"}</span>
+                </div>
+                <span className="mt-0.5 block font-mono text-[8px] uppercase tracking-[0.22em] text-white/90 font-bold opacity-90">
+                  HEAL THE STACK // RESTORE NOMINAL TELEMETRY
+                </span>
+              </button>
+            )}
+          </>
         ) : (
           <button
             type="button"
             onClick={handleRun}
             disabled={busy || selectedScenarioId == null}
             className={`group w-full border px-4 py-3 text-center font-mono transition-all duration-200 shadow-[0_0_24px_rgba(99,102,241,0.14)] active:scale-[0.98] ${
-              running
-                ? "cursor-wait border-signal-red bg-signal-red text-white font-black animate-pulse"
-                : busy || selectedScenarioId == null
-                  ? "cursor-not-allowed border-gunmetal-900/10 bg-titanium-fold text-[#5B6272] shadow-none"
-                  : "border-ultraviolet bg-gradient-to-r from-[#6366F1] to-[#7C3AED] text-white font-black hover:from-[#4F46E5] hover:to-[#6D28D9] shadow-[0_0_24px_rgba(99,102,241,0.2)] focus:ring-2 focus:ring-ultraviolet"
+              busy || selectedScenarioId == null
+                ? "cursor-not-allowed border-gunmetal-900/10 bg-titanium-fold text-[#5B6272] shadow-none"
+                : "border-ultraviolet bg-gradient-to-r from-[#6366F1] to-[#7C3AED] text-white font-black hover:from-[#4F46E5] hover:to-[#6D28D9] shadow-[0_0_24px_rgba(99,102,241,0.2)] focus:ring-2 focus:ring-ultraviolet"
             }`}
           >
             <div className="flex items-center justify-center gap-2 font-display text-[17px] font-black uppercase tracking-[0.24em]">
-              {running ? (
-                <Flame className="h-5 w-5 text-white animate-bounce" />
-              ) : (
-                <Play className="h-5 w-5 text-white fill-current transition-transform group-hover:scale-110" />
-              )}
-              <span>{running ? "ATTACK UNDERWAY..." : "INJECT FAULT"}</span>
+              <Play className="h-5 w-5 text-white fill-current transition-transform group-hover:scale-110" />
+              <span>INJECT FAULT</span>
             </div>
             <span className="mt-0.5 block font-mono text-[8px] uppercase tracking-[0.22em] text-white/90 font-bold opacity-90">
-              {running
-                ? "WATCH 3D ARCHITECTURE & TELEMETRY"
-                : selectedScenarioId == null
-                  ? "SELECT VECTOR FIRST"
-                  : "START 40-SECOND IN-PROCESS EXPERIMENT"}
+              {selectedScenarioId == null
+                ? "SELECT VECTOR FIRST"
+                : "START 40-SECOND IN-PROCESS EXPERIMENT"}
             </span>
           </button>
         )}

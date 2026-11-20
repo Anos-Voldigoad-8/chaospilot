@@ -112,6 +112,61 @@ def test_resolve_requires_active_fault_experiment(tmp_path) -> None:
         assert response.status_code == 400
 
 
+def test_stop_aborts_active_experiment_and_allows_new_run(tmp_path) -> None:
+    app, database = _app(tmp_path)
+    database.insert_scenario(
+        fault_type="latency",
+        target_service="payments",
+        duration_minutes=0.5,
+        severity="high",
+        load_curve=[],
+        source="seed",
+        source_url="scripts/build_seed.py",
+        data_source="seed",
+        title="seed latency on payments",
+    )
+    with TestClient(app) as client:
+        # Start an experiment; it pauses in the fault state.
+        run = client.post(
+            "/experiments/run", json={"scenario_id": 1, "fixes": False}
+        ).json()
+        for _ in range(200):
+            detail = client.get(f"/experiments/{run['id']}").json()
+            if detail.get("status") == "fault":
+                break
+            time.sleep(0.1)
+        assert detail["status"] == "fault", detail
+
+        # Stop it.
+        stopped = client.post(f"/experiments/{run['id']}/stop")
+        assert stopped.status_code == 200, stopped.text
+        assert stopped.json()["status"] == "stopped"
+
+        # The background task updates the run status to "stopped".
+        detail = None
+        for _ in range(200):
+            detail = client.get(f"/experiments/{run['id']}").json()
+            if detail.get("status") == "stopped":
+                break
+            time.sleep(0.1)
+        assert detail is not None
+        assert detail["status"] == "stopped", detail
+
+        # A new experiment can now be started (runner is no longer busy).
+        run2 = client.post(
+            "/experiments/run", json={"scenario_id": 1, "fixes": False}
+        ).json()
+        assert run2["status"] == "pending"
+        assert run2["id"] != run["id"]
+
+
+def test_stop_requires_active_experiment(tmp_path) -> None:
+    app, _ = _app(tmp_path)
+    with TestClient(app) as client:
+        response = client.post("/experiments/1/stop")
+        assert response.status_code == 400
+
+
 def test_unknown_scenario_rejected(tmp_path) -> None:
     app, _ = _app(tmp_path)
     with TestClient(app) as client:

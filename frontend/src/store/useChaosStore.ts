@@ -209,6 +209,7 @@ interface ChaosState {
   ingest: (event: WsEvent) => void;
   runExperiment: (overrides?: { scenario_id?: number; fixes?: boolean }) => Promise<void>;
   resolveExperiment: () => Promise<void>;
+  stopExperiment: () => Promise<void>;
   collectData: () => Promise<void>;
   loadTopology: () => Promise<void>;
   refreshExperiments: () => Promise<void>;
@@ -499,6 +500,44 @@ export const useChaosStore = create<ChaosState>((set, get) => ({
       });
       get().ingest({ type: "log", level: "error", text: `resolve failed // ${message}` });
     }
+  },
+
+  stopExperiment: async () => {
+    const experimentId = get().activeExperimentId;
+    if (experimentId == null) {
+      set({ lastError: "no active experiment to stop" });
+      return;
+    }
+    set({ lastError: null });
+    try {
+      await api.stopExperiment(experimentId);
+    } catch (error) {
+      // Best-effort: even if the API call fails, clear the local run state so
+      // the operator can start a new task.
+      const message = errorMessage(error, "failed to stop experiment");
+      get().ingest({ type: "log", level: "warn", text: `stop requested // ${message}` });
+    }
+    // Reset the live run state so a new experiment can be started immediately.
+    set({
+      running: false,
+      faultActive: false,
+      activeExperimentId: null,
+      runStartedAt: null,
+      postmortem: "",
+      postmortemSource: null,
+      score: 100,
+      scoreBreakdown: freshBreakdown(),
+      metrics: [],
+      anomaly: 0,
+      anomalyServices: {},
+      services: zeroedServices(),
+      lastError: null,
+    });
+    get().ingest({
+      type: "log",
+      level: "info",
+      text: "experiment stopped // ready for a new task",
+    });
   },
 
   loadTopology: async () => {

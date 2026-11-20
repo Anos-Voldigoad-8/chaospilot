@@ -184,6 +184,16 @@ def create_app(
         except UnknownExperimentError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    @application.post("/experiments/{experiment_id}/stop")
+    async def stop_experiment(
+        experiment_id: int, request: Request
+    ) -> dict[str, object]:
+        runner: ExperimentRunner = request.app.state.runner
+        try:
+            return await runner.stop(experiment_id)
+        except UnknownExperimentError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     @application.websocket("/ws")
     async def websocket_stream(websocket: WebSocket) -> None:
         await hub.connect(websocket)

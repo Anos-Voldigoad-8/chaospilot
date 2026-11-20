@@ -43,10 +43,16 @@ class ApiSettings:
     @classmethod
     def from_env(cls) -> ApiSettings:
         origins = os.getenv(
-            "CHAOSPILOT_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
+            "CHAOSPILOT_CORS_ORIGINS",
+            "http://localhost:5173,http://127.0.0.1:5173,https://chaospilot.vercel.app",
+        )
+        default_db = (
+            Path("/tmp/chaospilot.db")
+            if os.getenv("VERCEL") or os.getenv("VERCEL_ENV") or os.getenv("AWS_LAMBDA_FUNCTION_NAME")
+            else DEFAULT_DB_PATH
         )
         return cls(
-            db_path=Path(os.getenv("CHAOSPILOT_DB_PATH", str(DEFAULT_DB_PATH))),
+            db_path=Path(os.getenv("CHAOSPILOT_DB_PATH", str(default_db))),
             host=os.getenv("SAMPLE_STACK_HOST", "127.0.0.1"),
             baseline_seconds=_env_float("CHAOSPILOT_BASELINE_SECONDS", 10.0),
             fault_seconds=_env_float("CHAOSPILOT_FAULT_SECONDS", 20.0),

@@ -15,6 +15,7 @@ Two tables back the Phase 2 loop:
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import time
 from collections.abc import Iterable, Iterator
@@ -23,7 +24,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-DEFAULT_DB_PATH = Path(__file__).resolve().parent / "data" / "chaos.db"
+def _default_db_path() -> Path:
+    if os.getenv("CHAOSPILOT_DB_PATH"):
+        return Path(os.environ["CHAOSPILOT_DB_PATH"])
+    if os.getenv("VERCEL") or os.getenv("VERCEL_ENV") or os.getenv("AWS_LAMBDA_FUNCTION_NAME"):
+        return Path("/tmp/chaospilot.db")
+    return Path(__file__).resolve().parent / "data" / "chaos.db"
+
+DEFAULT_DB_PATH = _default_db_path()
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS experiments (
@@ -119,12 +127,24 @@ class ChaosDatabase:
 
     def __init__(self, path: str | Path = DEFAULT_DB_PATH) -> None:
         self.path = Path(path)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            self.path = Path("/tmp") / self.path.name
+            try:
+                self.path.parent.mkdir(parents=True, exist_ok=True)
+            except OSError:
+                pass
         self.init_schema()
+        self.seed_initial_scenarios_if_empty()
 
     @contextmanager
     def connect(self) -> Iterator[sqlite3.Connection]:
-        connection = sqlite3.connect(self.path, timeout=10.0)
+        try:
+            connection = sqlite3.connect(self.path, timeout=10.0)
+        except sqlite3.OperationalError:
+            self.path = Path("/tmp") / self.path.name
+            connection = sqlite3.connect(self.path, timeout=10.0)
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA foreign_keys = ON")
         try:
@@ -135,8 +155,41 @@ class ChaosDatabase:
 
     def init_schema(self) -> None:
         with self.connect() as connection:
-            connection.execute("PRAGMA journal_mode = WAL")
+            try:
+                connection.execute("PRAGMA journal_mode = WAL")
+            except sqlite3.OperationalError:
+                connection.execute("PRAGMA journal_mode = DELETE")
             connection.executescript(SCHEMA)
+
+    def seed_initial_scenarios_if_empty(self) -> None:
+        try:
+            with self.connect() as connection:
+                cursor = connection.execute("SELECT COUNT(*) FROM scenarios")
+                row = cursor.fetchone()
+                if row and row[0] == 0:
+                    seed_path = Path(__file__).resolve().parent / "data" / "seed" / "incidents_seed.json"
+                    if seed_path.exists():
+                        incidents = json.loads(seed_path.read_text(encoding="utf-8"))
+                        for inc in incidents[:15]:
+                            connection.execute(
+                                "INSERT INTO scenarios (fault_type, target_service, duration_minutes, "
+                                "severity, load_curve, source, source_url, data_source, title, created_at) "
+                                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                                (
+                                    inc.get("fault_type", "kill"),
+                                    inc.get("component", "gateway"),
+                                    float(inc.get("duration_minutes", 15)),
+                                    inc.get("impact", "medium"),
+                                    "[]",
+                                    "seed",
+                                    "offline://seed",
+                                    "seed",
+                                    inc.get("title", "Seed Incident"),
+                                    float(inc.get("occurred_at", time.time())),
+                                ),
+                            )
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
     # Experiments

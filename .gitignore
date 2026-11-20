@@ -78,3 +78,4 @@ desktop.ini
 logs/
 
 .vercel
+.env*

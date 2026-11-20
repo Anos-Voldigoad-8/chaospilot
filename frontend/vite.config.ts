@@ -8,6 +8,7 @@ const backend = "http://127.0.0.1:8090";
 const proxy = {
   "/health": backend,
   "/topology": backend,
+  "/scenarios": backend,
   "/experiments": backend,
   "/agent": backend,
   "/ws": {

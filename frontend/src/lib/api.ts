@@ -7,10 +7,9 @@ import type {
   Topology,
 } from "../types/chaos";
 
-// Public, non-secret configuration only. The Vite dev proxy forwards /api,
-// /topology, /experiments, /agent and /ws to the backend, so an empty base
-// means "same origin" and keeps the browser free of hardcoded ports.
-const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
+// Public, non-secret configuration only. When deployed on Vercel, the /api/*
+// route is rewritten to the backend service. In local dev, Vite proxies /api.
+const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "/api").replace(/\/$/, "");
 
 export class ApiError extends Error {
   status: number;

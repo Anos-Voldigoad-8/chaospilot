@@ -20,7 +20,7 @@ import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 
-from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -108,7 +108,9 @@ def create_app(
         allow_headers=["*"],
     )
 
-    @application.get("/health")
+    router = APIRouter()
+
+    @router.get("/health")
     async def health(request: Request) -> dict[str, object]:
         runner: ExperimentRunner = request.app.state.runner
         return {
@@ -119,24 +121,24 @@ def create_app(
             "websocket_clients": hub.connection_count,
         }
 
-    @application.get("/topology")
+    @router.get("/topology")
     async def get_topology() -> dict[str, object]:
         return topology()
 
-    @application.get("/scenarios")
+    @router.get("/scenarios")
     async def list_scenarios(request: Request, limit: int = 100) -> dict[str, object]:
         database: ChaosDatabase = request.app.state.database
         capped = max(1, min(limit, MAX_HISTORY))
         scenarios = database.list_scenarios(limit=capped)
         return {"scenarios": scenarios, "count": len(scenarios)}
 
-    @application.post("/agent/collect")
+    @router.post("/agent/collect")
     async def agent_collect(request: Request) -> dict[str, object]:
         service: DataAgent = request.app.state.agent
         scenarios = await service.collect()
         return {"scenarios": scenarios, "count": len(scenarios)}
 
-    @application.post(
+    @router.post(
         "/experiments/run",
         status_code=202,
         response_model=ExperimentResponse,
@@ -157,7 +159,7 @@ def create_app(
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    @application.get("/experiments")
+    @router.get("/experiments")
     async def list_experiments(
         request: Request, limit: int = 50
     ) -> dict[str, object]:
@@ -166,7 +168,7 @@ def create_app(
         experiments = runner.history(limit=capped)
         return {"experiments": experiments, "count": len(experiments)}
 
-    @application.get("/experiments/{experiment_id}")
+    @router.get("/experiments/{experiment_id}")
     async def get_experiment(request: Request, experiment_id: int) -> dict[str, object]:
         runner: ExperimentRunner = request.app.state.runner
         detail = runner.detail(experiment_id)
@@ -174,7 +176,7 @@ def create_app(
             raise HTTPException(status_code=404, detail="experiment not found")
         return detail
 
-    @application.post("/experiments/{experiment_id}/resolve")
+    @router.post("/experiments/{experiment_id}/resolve")
     async def resolve_experiment(
         experiment_id: int, request: Request
     ) -> dict[str, object]:
@@ -184,7 +186,7 @@ def create_app(
         except UnknownExperimentError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    @application.post("/experiments/{experiment_id}/stop")
+    @router.post("/experiments/{experiment_id}/stop")
     async def stop_experiment(
         experiment_id: int, request: Request
     ) -> dict[str, object]:
@@ -194,7 +196,11 @@ def create_app(
         except UnknownExperimentError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    application.include_router(router)
+    application.include_router(router, prefix="/api")
+
     @application.websocket("/ws")
+    @application.websocket("/api/ws")
     async def websocket_stream(websocket: WebSocket) -> None:
         await hub.connect(websocket)
         with suppress(Exception):

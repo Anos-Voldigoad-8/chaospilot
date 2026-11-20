@@ -36,7 +36,7 @@ export function TelemetryStream() {
             <span className="h-1.5 w-1.5 rounded-full bg-ultraviolet shadow-ultravioletSm" />
             <span>LATENCY: {currentLatency}</span>
           </div>
-          <div className="flex items-center gap-1.5 text-signal-red font-bold">
+          <div className={`flex items-center gap-1.5 font-bold ${latest && latest.errorRate > 0 ? "text-signal-red animate-pulse" : "text-signal-red"}`}>
             <span className="h-1.5 w-1.5 rounded-full bg-signal-red" />
             <span>ERROR: {currentError}</span>
           </div>
@@ -70,7 +70,12 @@ export function TelemetryStream() {
             <CartesianGrid stroke="#E8EBF1" strokeDasharray="3 3" vertical={false} />
             <XAxis dataKey="index" hide />
             <YAxis yAxisId="latency" hide domain={[0, "dataMax + 120"]} />
-            <YAxis yAxisId="error" hide domain={[0, 100]} orientation="right" />
+            <YAxis
+              yAxisId="error"
+              hide
+              domain={[0, (dataMax: number) => Math.max(5, Math.ceil(dataMax * 1.5))]}
+              orientation="right"
+            />
             <Tooltip
               content={({ active, payload }) => {
                 if (active && payload && payload.length) {

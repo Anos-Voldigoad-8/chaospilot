@@ -15,6 +15,7 @@ export default function App() {
   useWebSocket();
 
   const mockMode = useChaosStore((state) => state.mockMode);
+  const lastError = useChaosStore((state) => state.lastError);
   const mockStarted = useRef(false);
 
   useEffect(() => {
@@ -74,6 +75,24 @@ export default function App() {
             <span>ZERO EXPOSED SECRETS</span>
           </div>
         </footer>
+
+        {/* Global Error Banner */}
+        {lastError ? (
+          <div className="fixed bottom-4 right-4 z-50 max-w-md border border-signal-red bg-signal-redLight p-3 shadow-2xl flex items-center justify-between gap-3 font-mono backdrop-blur-md">
+            <div className="flex items-center gap-2 text-signal-red text-[10px] font-bold uppercase tracking-wider">
+              <span className="h-2 w-2 rounded-full bg-signal-red animate-ping" />
+              <span>{lastError}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => useChaosStore.setState({ lastError: null })}
+              className="text-signal-red hover:text-white hover:bg-signal-red px-1.5 py-0.5 text-[9px] font-bold border border-signal-red transition-colors shrink-0"
+              title="Dismiss error"
+            >
+              DISMISS
+            </button>
+          </div>
+        ) : null}
       </main>
     </div>
   );

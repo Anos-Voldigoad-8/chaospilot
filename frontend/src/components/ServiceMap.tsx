@@ -60,8 +60,8 @@ function ServiceNode({ data }: NodeProps<ServiceNodeType>) {
 
       <div className="mt-2.5 flex items-end justify-between gap-2 font-mono border-t border-[#DDE1EA] pt-1.5">
         <span
-          className="text-[17px] font-bold leading-none text-gunmetal-900"
-          style={{ color: data.status === "bad" ? "#EF4444" : "#1E222B" }}
+          className="text-[17px] font-bold leading-none"
+          style={{ color: data.status !== "ok" ? "#EF4444" : "#1E222B" }}
         >
           {formatLatency(data.latency)}
         </span>

@@ -317,53 +317,56 @@ export const useChaosStore = create<ChaosState>((set, get) => ({
       return;
     }
 
-    const state = get();
-    const finishedAt = Date.now();
-    const finishedId = state.activeExperimentId;
-    const score = Math.round(state.score);
-    const outcome: RunOutcome = {
-      id: finishedId,
-      fault: "latency",
-      target: state.selectedScenarioId
-        ? state.scenarios.find((s) => s.id === state.selectedScenarioId)?.target_service ??
-          "payments"
-        : "payments",
-      fixes: state.applyFixes,
-      score,
-      at: finishedAt,
-    };
-    set({
-      postmortem: event.text,
-      postmortemSource: event.source ?? (event.structured ? "llm" : "template"),
-      running: false,
-      faultActive: false,
-      activeExperimentId: null,
-      ...(state.applyFixes ? { compareOn: outcome } : { compareOff: outcome }),
-    });
-
-    if (state.mockMode) {
-      const summary: ExperimentSummary = {
-        id: finishedId ?? ++mockId,
-        fault: "latency",
-        target: outcome.target,
+    if (event.type === "postmortem") {
+      const state = get();
+      const finishedAt = Date.now();
+      const finishedId = state.activeExperimentId;
+      const score = Math.round(state.score);
+      const currentScenario = state.selectedScenarioId
+        ? state.scenarios.find((s) => s.id === state.selectedScenarioId)
+        : null;
+      const outcome: RunOutcome = {
+        id: finishedId,
+        fault: (currentScenario?.fault_type as FaultKind) ?? "latency",
+        target: currentScenario?.target_service ?? "payments",
         fixes: state.applyFixes,
-        status: "completed",
         score,
-        started: state.runStartedAt ?? finishedAt - 15_000,
-        ended: finishedAt,
-        sample_count: 180,
-        error_count: 0,
+        at: finishedAt,
       };
-      set((current) => ({
-        experiments: [
-          summary,
-          ...current.experiments.filter((run) => run.id !== summary.id),
-        ].slice(0, 12),
-      }));
+      set({
+        postmortem: event.text,
+        postmortemSource: event.source ?? (event.structured ? "llm" : "template"),
+        running: false,
+        faultActive: false,
+        activeExperimentId: null,
+        ...(state.applyFixes ? { compareOn: outcome } : { compareOff: outcome }),
+      });
+
+      if (state.mockMode) {
+        const summary: ExperimentSummary = {
+          id: finishedId ?? ++mockId,
+          fault: outcome.fault,
+          target: outcome.target,
+          fixes: state.applyFixes,
+          status: "completed",
+          score,
+          started: state.runStartedAt ?? finishedAt - 15_000,
+          ended: finishedAt,
+          sample_count: 180,
+          error_count: 0,
+        };
+        set((current) => ({
+          experiments: [
+            summary,
+            ...current.experiments.filter((run) => run.id !== summary.id),
+          ].slice(0, 12),
+        }));
+        return;
+      }
+
+      void get().refreshExperiments();
       return;
     }
-
-    void get().refreshExperiments();
   },
 
   collectData: async () => {
@@ -572,8 +575,9 @@ export const useChaosStore = create<ChaosState>((set, get) => ({
         compareOff: state.compareOff ?? history.compareOff,
         compareOn: state.compareOn ?? history.compareOn,
       }));
-    } catch {
-      // History is best-effort; the live stream still drives the dashboard.
+    } catch (error) {
+      const message = errorMessage(error, "failed to refresh experiments");
+      get().ingest({ type: "log", level: "warn", text: `experiments sync warning // ${message}` });
     }
   },
 
@@ -585,8 +589,9 @@ export const useChaosStore = create<ChaosState>((set, get) => ({
       if (scenarios.length > 0 && get().selectedScenarioId == null) {
         set({ selectedScenarioId: scenarios[0].id });
       }
-    } catch {
-      // Scenarios are best-effort; collect data to populate them.
+    } catch (error) {
+      const message = errorMessage(error, "failed to load scenarios");
+      get().ingest({ type: "log", level: "warn", text: `scenarios sync warning // ${message}` });
     }
   },
 
@@ -601,15 +606,28 @@ export const useChaosStore = create<ChaosState>((set, get) => ({
 
     try {
       const detail = await api.experiment(id);
+      const postmortemText =
+        detail.postmortem ||
+        (detail.error
+          ? `INCIDENT #${id} EXECUTION ERROR:\n${detail.error}\n\nStatus: ${detail.status.toUpperCase()}`
+          : "");
       set({
-        postmortem: detail.postmortem ?? "",
-        postmortemSource: detail.postmortem ? "template" : null,
+        postmortem: postmortemText,
+        postmortemSource: detail.postmortem ? "template" : detail.error ? "llm" : null,
         ...(detail.score !== null
           ? { score: detail.score, scoreBreakdown: freshBreakdown(detail.score) }
           : {}),
       });
+      if (detail.error) {
+        get().ingest({
+          type: "log",
+          level: "error",
+          text: `experiment #${id} error: ${detail.error}`,
+        });
+      }
     } catch (error) {
       const message = errorMessage(error, `report #${id} unavailable`);
+      set({ lastError: message });
       get().ingest({ type: "log", level: "error", text: `report load failed // ${message}` });
     }
   },

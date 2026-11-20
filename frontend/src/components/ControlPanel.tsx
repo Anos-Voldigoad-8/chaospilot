@@ -386,6 +386,15 @@ export function ControlPanel() {
                           SHIELD ON
                         </span>
                       ) : null}
+                      {run.status === "failed" ? (
+                        <span className="text-[7.5px] border border-signal-red/40 bg-signal-redLight text-signal-red font-bold px-1">
+                          FAILED
+                        </span>
+                      ) : (run.error_count ?? 0) > 0 ? (
+                        <span className="text-[7.5px] border border-signal-red/30 bg-signal-redLight text-signal-red font-semibold px-1">
+                          {run.error_count} ERRORS
+                        </span>
+                      ) : null}
                     </div>
                     <div className="text-[8px] font-mono text-[#5B6272]">
                       {formatRelative(run.started)}

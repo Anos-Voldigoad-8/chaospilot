@@ -187,15 +187,13 @@ def create_app(
         except UnknownExperimentError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    @router.post("/experiments/stop")
     @router.post("/experiments/{experiment_id}/stop")
     async def stop_experiment(
-        experiment_id: int, request: Request
+        request: Request, experiment_id: int | None = None
     ) -> dict[str, object]:
         runner: ExperimentRunner = request.app.state.runner
-        try:
-            return await runner.stop(experiment_id)
-        except UnknownExperimentError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return await runner.stop(experiment_id)
 
     application.include_router(router)
     application.include_router(router, prefix="/api")

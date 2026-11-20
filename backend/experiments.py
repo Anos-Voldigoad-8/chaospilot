@@ -142,10 +142,15 @@ class ExperimentRunner:
             scenario["fault_type"] = "latency"
 
         async with self._lock:
-            if self.running:
-                raise ExperimentBusyError(
-                    f"experiment #{self.active_id} is already running"
-                )
+            if self._task is not None and not self._task.done():
+                if self._run is None or self._run.stopped:
+                    self._task.cancel()
+                    self._run = None
+                    self._task = None
+                else:
+                    raise ExperimentBusyError(
+                        f"experiment #{self.active_id} is already running"
+                    )
             started = time.time()
             experiment_id = self.database.start_experiment(
                 scenario["fault_type"],
@@ -223,26 +228,34 @@ class ExperimentRunner:
         )
         return {"id": run.id, "status": "recovery", "fault_ended": run.fault_ended}
 
-    async def stop(self, experiment_id: int) -> dict[str, Any]:
+    async def stop(self, experiment_id: int | None = None) -> dict[str, Any]:
         """Stop the active experiment so a new one can be started.
 
-        Called by the operator clicking "STOP / RESET". Marks the run as
-        stopped so the paused fault loop exits and the experiment finishes
-        with status ``stopped``. Clears the active run so the next
-        ``start()`` is accepted.
+        Called by the operator clicking "STOP / RESET". Cancels the running task
+        instantly and clears the active run so the next start() is accepted immediately.
         """
         run = self._run
-        if run is None or run.id != experiment_id:
-            raise UnknownExperimentError(f"no active experiment #{experiment_id}")
-        run.stopped = True
-        run.awaiting_fix = False
-        run.fault_ended = time.time()
-        self.database.update_run(run.id, fault_ended=run.fault_ended)
-        await self.hub.log(
-            "warn",
-            f"Operator stopped experiment #{run.id}; clearing active run",
-        )
-        return {"id": run.id, "status": "stopped", "fault_ended": run.fault_ended}
+        task = self._task
+
+        if run is not None:
+            run.stopped = True
+            run.awaiting_fix = False
+            run.fault_ended = time.time()
+            self.database.update_run(run.id, status="stopped", fault_ended=run.fault_ended)
+            await self._safe_log(
+                "warn",
+                f"Operator stopped experiment #{run.id}; clearing active run",
+            )
+
+        if task is not None and not task.done():
+            task.cancel()
+            with suppress(asyncio.CancelledError):
+                await asyncio.sleep(0.02)
+
+        stopped_id = run.id if run is not None else (experiment_id or 0)
+        self._run = None
+        self._task = None
+        return {"id": stopped_id, "status": "stopped", "fault_ended": time.time()}
 
     # ------------------------------------------------------------------ #
     # Run lifecycle
@@ -424,6 +437,8 @@ class ExperimentRunner:
             grouped.setdefault(sample.ts, []).append(sample)
         delay = 0.0 if fast else 0.05
         for ts in sorted(grouped):
+            if run.stopped:
+                break
             batch = grouped[ts]
             self.database.insert_samples(batch)
             self._recent.extend(batch)

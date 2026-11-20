@@ -519,10 +519,6 @@ export const useChaosStore = create<ChaosState>((set, get) => ({
 
   stopExperiment: async () => {
     const experimentId = get().activeExperimentId;
-    if (experimentId == null) {
-      set({ lastError: "no active experiment to stop" });
-      return;
-    }
     set({ lastError: null });
     try {
       await api.stopExperiment(experimentId);

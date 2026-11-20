@@ -88,9 +88,9 @@ export const api = {
       { method: "POST" },
     ),
   // Stop the active experiment so a new one can be started (STOP / RESET).
-  stopExperiment: (id: number) =>
+  stopExperiment: (id?: number | null) =>
     request<{ id: number; status: string; fault_ended: number }>(
-      `/experiments/${id}/stop`,
+      id ? `/experiments/${id}/stop` : `/experiments/stop`,
       { method: "POST" },
     ),
 };

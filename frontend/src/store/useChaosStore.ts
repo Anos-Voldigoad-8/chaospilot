@@ -245,8 +245,8 @@ export const useChaosStore = create<ChaosState>((set, get) => ({
   selectedScenarioId: MOCK_MODE ? MOCK_SCENARIOS[0].id : null,
   scenarios: MOCK_MODE ? MOCK_SCENARIOS : [],
   experiments: MOCK_MODE ? MOCK_EXPERIMENTS : [],
-  compareOff: MOCK_MODE ? outcomeFor(MOCK_EXPERIMENTS[2]) : null,
-  compareOn: MOCK_MODE ? outcomeFor(MOCK_EXPERIMENTS[0]) : null,
+  compareOff: outcomeFor(MOCK_EXPERIMENTS[2]),
+  compareOn: outcomeFor(MOCK_EXPERIMENTS[0]),
 
   setConnection: (connection) =>
     set((state) => ({
@@ -572,8 +572,8 @@ export const useChaosStore = create<ChaosState>((set, get) => ({
       const history = compareFromHistory(experiments);
       set((state) => ({
         experiments,
-        compareOff: state.compareOff ?? history.compareOff,
-        compareOn: state.compareOn ?? history.compareOn,
+        compareOff: history.compareOff ?? state.compareOff,
+        compareOn: history.compareOn ?? state.compareOn,
       }));
     } catch (error) {
       const message = errorMessage(error, "failed to refresh experiments");

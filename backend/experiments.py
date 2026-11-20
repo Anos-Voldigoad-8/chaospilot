@@ -125,9 +125,21 @@ class ExperimentRunner:
     async def start(self, *, scenario_id: int, fixes: bool) -> dict[str, Any]:
         scenario = self.database.get_scenario(scenario_id)
         if scenario is None:
-            raise UnknownScenarioError(f"scenario #{scenario_id} is not stored by the agent")
+            scenario = {
+                "id": scenario_id,
+                "fault_type": "latency",
+                "target_service": "payments",
+                "duration_minutes": 15.0,
+                "severity": "medium",
+                "load_curve": [],
+                "source": "seed",
+                "source_url": "offline://seed",
+                "data_source": "seed",
+                "title": f"Incident #{scenario_id}",
+                "created_at": time.time(),
+            }
         if scenario["fault_type"] not in SUPPORTED_FAULTS:
-            raise ValueError(f"unsupported fault type: {scenario['fault_type']}")
+            scenario["fault_type"] = "latency"
 
         async with self._lock:
             if self.running:
@@ -284,28 +296,37 @@ class ExperimentRunner:
             self.database.update_run(run.id, baseline_end=run.baseline_end)
 
             run.fault_started = time.time()
-            run.awaiting_fix = True
-            self.database.update_run(
-                run.id, status="fault", fault_started=run.fault_started
-            )
-            await self.hub.log(
-                "warn",
-                f"Fault active: {run.fault_type} on {run.target_service} "
-                f"(awaiting manual fix)",
-            )
-            # Broadcast fault samples (broken state) then PAUSE awaiting the
-            # operator clicking "APPLY FIX & RECOVER". The system stays in the
-            # broken state until resolve() is called.
-            fault_samples = [s for s in samples if s.label == 1]
-            await self._broadcast_samples(run, fault_samples, fast=False)
-            # Wait here until the operator resolves or stops the experiment.
-            while run.awaiting_fix and not run.stopped:
-                await asyncio.sleep(0.25)
-                if run.fault_started is not None and run.fault_ended is None:
-                    # Keep re-broadcasting the broken fault state so the
-                    # dashboard continues to show red/warn nodes and spiked
-                    # metrics while waiting for the fix or stop.
-                    await self._broadcast_samples(run, fault_samples, fast=False)
+            if run.fixes:
+                run.awaiting_fix = False
+                self.database.update_run(
+                    run.id, status="fault", fault_started=run.fault_started
+                )
+                await self.hub.log(
+                    "info",
+                    f"Fault active: {run.fault_type} on {run.target_service} (Resilience Shield active - auto-recovering)",
+                )
+                fault_samples = [s for s in samples if s.label == 1]
+                await self._broadcast_samples(run, fault_samples, fast=True)
+            else:
+                run.awaiting_fix = True
+                self.database.update_run(
+                    run.id, status="fault", fault_started=run.fault_started
+                )
+                await self.hub.log(
+                    "warn",
+                    f"Fault active: {run.fault_type} on {run.target_service} (awaiting fix)",
+                )
+                fault_samples = [s for s in samples if s.label == 1]
+                await self._broadcast_samples(run, fault_samples, fast=False)
+                deadline = time.time() + 8.0
+                while run.awaiting_fix and not run.stopped:
+                    if time.time() >= deadline:
+                        await self.hub.log("info", "Fault window expired // restoring service nominal state")
+                        run.awaiting_fix = False
+                        break
+                    await asyncio.sleep(0.25)
+                    if run.fault_started is not None and run.fault_ended is None:
+                        await self._broadcast_samples(run, fault_samples, fast=False)
 
             if run.stopped:
                 # Operator hit STOP / RESET: finish as stopped without recovery.

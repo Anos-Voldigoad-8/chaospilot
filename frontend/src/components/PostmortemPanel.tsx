@@ -1,4 +1,3 @@
-import { useTypewriter } from "../hooks/useAnimation";
 import { useChaosStore } from "../store/useChaosStore";
 import { scoreColor } from "../lib/theme";
 import { Panel } from "./Panel";
@@ -14,7 +13,8 @@ export function PostmortemPanel() {
   const setApplyFixes = useChaosStore((state) => state.setApplyFixes);
   const runExperiment = useChaosStore((state) => state.runExperiment);
   const selectedScenarioId = useChaosStore((state) => state.selectedScenarioId);
-  const { output, typing } = useTypewriter(postmortem, 7);
+  const output = postmortem;
+  const typing = running && !postmortem;
 
   const retestWithFixes = () => {
     audioEngine.playClick();

@@ -6,6 +6,12 @@ import react from "@vitejs/plugin-react";
 const backend = "http://127.0.0.1:8090";
 
 const proxy = {
+  "/api": {
+    target: backend,
+    changeOrigin: true,
+    rewrite: (path) => path.replace(/^\/api/, ""),
+    ws: true,
+  },
   "/health": backend,
   "/topology": backend,
   "/scenarios": backend,

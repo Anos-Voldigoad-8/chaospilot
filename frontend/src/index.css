@@ -137,9 +137,9 @@
 }
 
 .service-node--warn {
-  border-color: #F59E0B;
-  color: #D97706;
-  box-shadow: 0 0 14px rgba(245, 158, 11, 0.15);
+  border-color: #EF4444;
+  color: #DC2626;
+  box-shadow: 0 0 14px rgba(239, 68, 68, 0.2);
 }
 
 .service-node--bad {

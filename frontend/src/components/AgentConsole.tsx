@@ -9,7 +9,7 @@ import { audioEngine } from "../lib/audio";
 const LEVEL_STYLE: Record<LogLevel, { tag: string; tagClass: string; textClass: string }> = {
   info: { tag: "INFO", tagClass: "text-[#5B6272] bg-[#F8F9FB] border-[#DDE1EA]", textClass: "text-gunmetal-900" },
   success: { tag: "RECOV", tagClass: "text-emerald-700 bg-emerald-50 border-emerald-200 font-bold", textClass: "text-emerald-700 font-bold" },
-  warn: { tag: "WARN", tagClass: "text-amber-700 bg-amber-50 border-amber-200 font-semibold", textClass: "text-amber-700 font-semibold" },
+  warn: { tag: "WARN", tagClass: "text-red-700 bg-red-50 border-red-200 font-semibold", textClass: "text-red-700 font-semibold" },
   error: { tag: "FAULT", tagClass: "text-red-700 bg-red-50 border-red-200 font-bold", textClass: "text-red-700 font-bold" },
 };
 

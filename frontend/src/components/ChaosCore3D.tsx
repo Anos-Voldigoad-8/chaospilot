@@ -411,8 +411,7 @@ export function ChaosCore3D() {
 
       const isTarget = node.id === targetService;
       let hexColor = 0x6366F1; // Soft Ultraviolet (nominal)
-      if (status === "bad" || (isTarget && running)) hexColor = 0xEF4444; // Signal Red
-      else if (status === "warn") hexColor = 0xF59E0B; // Amber
+      if (status === "bad" || status === "warn" || (isTarget && running)) hexColor = 0xEF4444; // Signal Red for all error/stress
 
       (node.mesh.material as THREE.MeshBasicMaterial).color.setHex(hexColor);
       (node.glowMesh.material as THREE.MeshBasicMaterial).color.setHex(hexColor);
@@ -429,10 +428,8 @@ export function ChaosCore3D() {
     // Update core orb color
     if (coreMeshRef.current) {
       const coreMat = coreMeshRef.current.material as THREE.MeshBasicMaterial;
-      if (hasAnyBad || running) {
+      if (hasAnyBad || hasAnyWarn || running) {
         coreMat.color.setHex(0xEF4444); // Signal Red
-      } else if (hasAnyWarn) {
-        coreMat.color.setHex(0xF59E0B); // Amber
       } else {
         coreMat.color.setHex(0x6366F1); // Soft Ultraviolet
       }
@@ -443,8 +440,7 @@ export function ChaosCore3D() {
       const srcStatus = services[edgeData.source]?.status;
       const tgtStatus = services[edgeData.target]?.status;
       let edgeColor = 0x94A3B8;
-      if (tgtStatus === "bad" || srcStatus === "bad") edgeColor = 0xEF4444;
-      else if (tgtStatus === "warn" || srcStatus === "warn") edgeColor = 0xF59E0B;
+      if (tgtStatus === "bad" || srcStatus === "bad" || tgtStatus === "warn" || srcStatus === "warn") edgeColor = 0xEF4444;
       else edgeColor = 0x6366F1;
 
       (edgeData.line.material as THREE.LineBasicMaterial).color.setHex(edgeColor);

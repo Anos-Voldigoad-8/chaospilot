@@ -157,7 +157,7 @@ export function ServiceMap() {
           services[edge.source]?.status,
           services[edge.target]?.status,
         );
-        const strokeColor = status === "bad" ? "#EF4444" : status === "warn" ? "#F59E0B" : "#6366F1";
+        const strokeColor = status !== "ok" ? "#EF4444" : "#6366F1";
 
         return {
           id: edge.id,
@@ -235,7 +235,7 @@ export function ServiceMap() {
         </div>
       }
     >
-      <div className="relative h-[420px] sm:h-[470px] xl:h-[570px] w-full bg-titanium-200/50">
+      <div className="relative h-[360px] sm:h-[400px] xl:h-[420px] w-full bg-titanium-200/50">
         {/* VIEW 1: 3D Holographic Core */}
         {viewMode === "3d" && (
           <div className="absolute inset-0">

@@ -5,6 +5,7 @@ import { ControlPanel } from "./components/ControlPanel";
 import { LiveMetrics } from "./components/LiveMetrics";
 import { PostmortemPanel } from "./components/PostmortemPanel";
 import { ServiceMap } from "./components/ServiceMap";
+import { TelemetryStream } from "./components/TelemetryStream";
 import { TopBar } from "./components/TopBar";
 import { AuroraBackground } from "./components/common/AuroraBackground";
 import { useWebSocket } from "./hooks/useWebSocket";
@@ -40,8 +41,9 @@ export default function App() {
           <div className="order-2 min-w-0 xl:order-none">
             <ControlPanel />
           </div>
-          <div className="order-1 min-w-0 md:col-span-2 xl:order-none xl:col-span-1">
+          <div className="order-1 min-w-0 md:col-span-2 xl:order-none xl:col-span-1 flex flex-col gap-3.5">
             <ServiceMap />
+            <TelemetryStream />
           </div>
           <div className="order-3 min-w-0 xl:order-none xl:col-span-1">
             <LiveMetrics />

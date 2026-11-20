@@ -41,7 +41,7 @@ export const COLORS = {
 
 export const STATUS_COLOR: Record<ServiceStatus, string> = {
   ok: "#10B981",
-  warn: "#F59E0B",
+  warn: "#EF4444", // Strict Red signal (not yellow)
   bad: "#EF4444",
 };
 
@@ -53,8 +53,7 @@ export const STATUS_LABEL: Record<ServiceStatus, string> = {
 
 export function scoreColor(score: number): string {
   if (score >= 80) return "#6366F1";
-  if (score >= 50) return "#F59E0B";
-  return "#EF4444";
+  return "#EF4444"; // Red for any degraded or critical score (not yellow)
 }
 
 export function scoreVerdict(score: number): string {

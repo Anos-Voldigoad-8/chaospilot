@@ -280,11 +280,9 @@ export function ControlPanel() {
                 audioEngine.playFaultAlert();
                 void stopExperiment();
               }}
-              disabled={busy}
+              disabled={false}
               className={`group w-full border px-4 py-3 text-center font-mono transition-all duration-200 shadow-[0_0_24px_rgba(239,68,68,0.18)] active:scale-[0.98] ${
-                busy
-                  ? "cursor-not-allowed border-gunmetal-900/10 bg-titanium-fold text-[#5B6272] shadow-none"
-                  : "border-signal-red bg-gradient-to-r from-[#EF4444] to-[#B91C1C] text-white font-black hover:from-[#B91C1C] hover:to-[#991B1B] shadow-[0_0_24px_rgba(239,68,68,0.25)] focus:ring-2 focus:ring-signal-red"
+                "border-signal-red bg-gradient-to-r from-[#EF4444] to-[#B91C1C] text-white font-black hover:from-[#B91C1C] hover:to-[#991B1B] shadow-[0_0_24px_rgba(239,68,68,0.25)] focus:ring-2 focus:ring-signal-red"
               }`}
             >
               <div className="flex items-center justify-center gap-2 font-display text-[15px] font-black uppercase tracking-[0.24em]">
@@ -303,11 +301,9 @@ export function ControlPanel() {
                   audioEngine.playFaultAlert();
                   void resolveExperiment();
                 }}
-                disabled={busy}
+                disabled={false}
                 className={`group w-full border px-4 py-3 text-center font-mono transition-all duration-200 shadow-[0_0_24px_rgba(16,185,129,0.18)] active:scale-[0.98] ${
-                  busy
-                    ? "cursor-not-allowed border-gunmetal-900/10 bg-titanium-fold text-[#5B6272] shadow-none"
-                    : "border-signal-green bg-gradient-to-r from-[#10B981] to-[#059669] text-white font-black hover:from-[#059669] hover:to-[#0D9488] shadow-[0_0_24px_rgba(16,185,129,0.25)] focus:ring-2 focus:ring-signal-green"
+                  "border-signal-green bg-gradient-to-r from-[#10B981] to-[#059669] text-white font-black hover:from-[#059669] hover:to-[#0D9488] shadow-[0_0_24px_rgba(16,185,129,0.25)] focus:ring-2 focus:ring-signal-green"
                 }`}
               >
                 <div className="flex items-center justify-center gap-2 font-display text-[15px] font-black uppercase tracking-[0.24em]">
